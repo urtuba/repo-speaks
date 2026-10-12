@@ -62,3 +62,16 @@ func noRows(err error) error {
 	}
 	return err
 }
+
+// oneRow returns ErrNotFound when res changed no row. what names the row
+// for the error message.
+func oneRow(res sql.Result, what string) error {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%s: %w", what, ErrNotFound)
+	}
+	return nil
+}

@@ -131,6 +131,58 @@ func (s *Store) RemoveMember(ctx context.Context, projectID, userID int64) error
 	return nil
 }
 
+// SetMemberPermissions replaces a member's permissions, in one
+// transaction. It returns ErrNotFound when the account is not a member.
+// The caller has checked the rules; the store does not know them.
+func (s *Store) SetMemberPermissions(ctx context.Context, projectID, userID int64, permissions []string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("set member permissions: %w", err)
+	}
+	defer tx.Rollback() // a no-op after Commit
+	var member bool
+	if err := tx.QueryRowContext(ctx,
+		"SELECT EXISTS (SELECT 1 FROM memberships WHERE project_id = ? AND user_id = ?)",
+		projectID, userID).Scan(&member); err != nil {
+		return fmt.Errorf("set member permissions: %w", err)
+	}
+	if !member {
+		return fmt.Errorf("membership of user %d in project %d: %w", userID, projectID, ErrNotFound)
+	}
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM member_permissions WHERE project_id = ? AND user_id = ?", projectID, userID); err != nil {
+		return fmt.Errorf("set member permissions: %w", err)
+	}
+	for _, p := range permissions {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT INTO member_permissions (project_id, user_id, permission) VALUES (?, ?, ?)",
+			projectID, userID, p); err != nil {
+			return fmt.Errorf("set member permissions: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+// RenameProject changes a project's name. It returns ErrNotFound for a
+// missing project.
+func (s *Store) RenameProject(ctx context.Context, id int64, name string) error {
+	res, err := s.db.ExecContext(ctx, "UPDATE projects SET name = ? WHERE id = ?", name, id)
+	if err != nil {
+		return fmt.Errorf("rename project: %w", err)
+	}
+	return oneRow(res, fmt.Sprintf("project %d", id))
+}
+
+// DeleteProject deletes a project and everything in it: memberships,
+// permissions and invites go with it (ON DELETE CASCADE).
+func (s *Store) DeleteProject(ctx context.Context, id int64) error {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete project: %w", err)
+	}
+	return oneRow(res, fmt.Sprintf("project %d", id))
+}
+
 // MemberPermissions returns the permission names an account holds in a
 // project. It returns ErrNotFound when the account is not a member, so
 // the caller can tell "no permissions" from "not a member".
