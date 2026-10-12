@@ -11,7 +11,7 @@ In priority order. When two of them conflict, the higher one wins.
 | # | Quality | Scenario |
 | --- | --- | --- |
 | 1 | Easy to self-host | A developer with Docker and an LLM API key gets the first answer within 15 minutes, running one container with one data folder. |
-| 2 | Project isolation | Nothing from project A — no file, answer or source — ever reaches a member or agent of project B. Every route and every agent tool is covered by a test. |
+| 2 | Project isolation | Nothing from project A (no file, answer or source) ever reaches a member or agent of project B. Every route and every agent tool is covered by a test. |
 | 3 | Answers you can check | Every answer lists the files it used. When the agent cannot find something, it says so instead of guessing. |
 
 ## System context
@@ -72,7 +72,7 @@ sequenceDiagram
     participant LLM as LLM API
 
     Asker->>App: Question (and text attachments, if the agent allows them)
-    App->>DB: Check membership, agents:view and the agent's rate limit
+    App->>DB: Check membership and the agent's rate limit
     App->>LLM: Agent instructions, question, available tools
     loop Until the LLM has enough context (indexing approach: open)
         LLM->>App: Tool call, e.g. search or read a file
@@ -85,6 +85,155 @@ sequenceDiagram
 ```
 
 The loop shows agentic search. If indexing uses embeddings instead, the App searches the index first and sends the closest pieces in one call; the rest of the flow stays the same.
+
+## Entity relationships
+
+Planned tables for phase 1. Indexing tables come with the indexing decision.
+
+```mermaid
+erDiagram
+    users ||--o{ sessions : "logs in with"
+    users ||--o{ memberships : "has"
+    projects ||--o{ memberships : "has"
+    memberships ||--o{ member_permissions : "holds"
+    projects ||--o{ invites : "has"
+    users ||--o{ invites : "creates"
+    users ||--o{ password_resets : "gets"
+    projects ||--o{ resources : "has"
+    projects ||--o{ agents : "has"
+    agents ||--o{ agent_resources : "picks"
+    resources ||--o{ agent_resources : "picked by"
+    permissions ||--o{ member_permissions : "names"
+    projects ||--o{ chats : "has"
+    agents ||--o{ chats : "answers in"
+    users ||--o{ chats : "starts"
+    chats ||--o{ messages : "contains"
+    messages ||--o{ attachments : "has"
+    messages ||--o{ message_sources : "cites"
+    resources ||--o{ jobs : "synced by"
+
+    users {
+        int id PK
+        text username UK "3-32 chars"
+        text password_hash "argon2id, PHC string"
+        bool is_owner "at most one row true"
+        time created_at
+    }
+    sessions {
+        blob id_hash PK "sha-256 of cookie value"
+        int user_id FK "cascade"
+        time expires_at "24h idle, moved forward"
+        time created_at
+    }
+    projects {
+        int id PK
+        text name
+        int attachment_max_bytes "default 262144, max 1048576"
+        int chat_retention_days "null = forever; 30, 90, 365"
+        time created_at
+    }
+    memberships {
+        int project_id PK,FK "cascade"
+        int user_id PK,FK "cascade"
+        int invited_by FK "null for owner-made"
+        time created_at
+    }
+    member_permissions {
+        int project_id PK,FK "cascade with membership"
+        int user_id PK,FK
+        text permission PK,FK "must exist in permissions"
+    }
+    permissions {
+        text name PK "filled by migrations"
+    }
+    agent_resources {
+        int agent_id PK,FK "cascade"
+        int resource_id PK,FK "cascade"
+    }
+    invites {
+        int id PK
+        int project_id FK "cascade"
+        blob token_hash UK
+        text preset "asker, builder, manager, admin"
+        int created_by FK
+        time expires_at "7 days"
+        time used_at "null until used"
+        int used_by FK
+        time revoked_at
+    }
+    password_resets {
+        blob token_hash PK
+        int user_id FK "cascade"
+        time expires_at
+        time used_at
+    }
+    resources {
+        int id PK
+        int project_id FK "cascade"
+        text kind "github_repo, markdown"
+        text location "repo URL or path"
+        text branch
+        time last_synced_at
+        text last_error
+    }
+    agents {
+        int id PK
+        int project_id FK "cascade"
+        text name
+        text description "every member sees it"
+        text prompt "agents:edit only"
+        bool attachments_on "default false"
+        bool all_resources "default true; false = agent_resources"
+        time created_at
+        time updated_at
+    }
+    chats {
+        int id PK
+        int project_id FK "cascade"
+        int agent_id FK "set null: deleted agent"
+        int user_id FK "set null: deleted account"
+        text title
+        time created_at
+    }
+    messages {
+        int id PK
+        int chat_id FK "cascade"
+        text role "user, assistant"
+        text content
+        time created_at
+    }
+    attachments {
+        int id PK
+        int message_id FK "cascade"
+        text filename
+        int size_bytes
+        text content "valid UTF-8 only"
+    }
+    message_sources {
+        int message_id PK,FK "cascade"
+        int position PK
+        int resource_id FK
+        text path "file in the resource"
+        int line_from
+        int line_to
+    }
+    jobs {
+        int id PK
+        text kind "sync_resource"
+        int resource_id FK "cascade"
+        text status "queued, running, done, failed"
+        int attempts
+        time run_after
+        time locked_at "claimed with UPDATE ... RETURNING"
+        text error
+    }
+```
+
+- IDs are integers. Times are Unix seconds. Tables are SQLite `STRICT`.
+- Deleting a project deletes everything in it.
+- Chats stay when a member leaves, or an agent or account is deleted. Each project chooses how long chats live: forever (default), 30, 90 or 365 days.
+- Session IDs and link tokens are stored only as SHA-256 hashes.
+- `member_permissions` references `permissions`, so the database rejects unknown names.
 
 ## Code map
 
@@ -109,7 +258,7 @@ Dependencies point one way: `web` uses the others; `store` and `llm` use nothing
 
 | Risk | Impact | Response |
 | --- | --- | --- |
-| A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; builders can review chats |
+| A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; managers can review chats (`chats:view`) |
 | Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM provider; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
 | Cost running away | Agentic search can make many LLM calls for one question | A rate limit per agent; a step limit per question; usage recorded per project |
 
@@ -118,4 +267,4 @@ Dependencies point one way: `web` uses the others; `store` and `llm` use nothing
 - Indexing: agentic search or embeddings
 - LLM provider: one SDK or any OpenAI-compatible endpoint
 - GitHub access: personal access token or GitHub App
-- Login details
+- How the owner resets their own password

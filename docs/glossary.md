@@ -13,13 +13,14 @@ One meaning per word. Code, UI and docs use these terms.
 | Preset | A named starting permission set: asker, builder, manager or admin. |
 | Asker | A member who views and asks questions, and changes nothing. |
 | Builder | A member who manages resources and agents. |
-| Manager | A builder who can also invite members (`members:edit`). |
+| Manager | A builder who can also invite members (`members:edit`) and read every chat (`chats:view`). |
 | Admin | A manager who can also edit the project (`project:edit`). |
 | Invite | A one-time link that adds a person to a project with a preset. |
 | Connection | Repo Speaks' access to GitHub. |
 | Resource | One repository or markdown folder added to a project through a connection. |
 | Sync | Bringing a resource up to date with GitHub. |
 | Agent | Instructions, enabled resources and a rate limit, inside one project. |
+| Chat | A conversation between one member and one agent. The member who started it can always read it; members with `chats:view` can read every chat. |
 | Source | A file or document listed under an answer, so a reader can check it. |
 
 ## Words to avoid
