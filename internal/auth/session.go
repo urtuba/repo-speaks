@@ -16,23 +16,24 @@ const SessionIdleTimeout = 24 * time.Hour
 // writes a new one. It saves a database write on every request.
 const sessionExtendAfter = time.Minute
 
-// sessionTokenBytes is the number of random bytes in a session token.
-const sessionTokenBytes = 32
+// tokenBytes is the number of random bytes in a token.
+const tokenBytes = 32
 
-// NewSessionToken returns a new random session token for the cookie, and
-// its hash for the database. The database never stores the token itself,
-// so a leaked database does not give anyone a working session.
-func NewSessionToken() (token, hash string) {
-	b := make([]byte, sessionTokenBytes)
+// NewToken returns a new random token, and its hash for the database.
+// Session cookies and invite links both use it. The database never
+// stores the token itself, so a leaked database gives nobody a working
+// session or link.
+func NewToken() (token, hash string) {
+	b := make([]byte, tokenBytes)
 	rand.Read(b) // never returns an error
 	token = base64.RawURLEncoding.EncodeToString(b)
-	return token, HashSessionToken(token)
+	return token, HashToken(token)
 }
 
-// HashSessionToken returns the hex SHA-256 hash of a session token, the
-// form the database stores. A plain hash is enough: the token is random
+// HashToken returns the hex SHA-256 hash of a token, the form the
+// database stores. A plain hash is enough: the token is random
 // and long, so it cannot be guessed from its hash.
-func HashSessionToken(token string) string {
+func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

@@ -42,7 +42,7 @@ func (s *server) loadSession(next http.Handler) http.Handler {
 			return
 		}
 		now := s.now()
-		idHash := auth.HashSessionToken(c.Value)
+		idHash := auth.HashToken(c.Value)
 		user, expiresAt, err := s.store.SessionUser(r.Context(), idHash, now)
 		if errors.Is(err, store.ErrNotFound) {
 			next.ServeHTTP(w, r)
@@ -91,7 +91,7 @@ func (s *server) startSession(w http.ResponseWriter, r *http.Request, userID int
 	if err := s.store.DeleteExpiredSessions(ctx, now); err != nil {
 		s.logger.Error("delete expired sessions", "err", err)
 	}
-	token, idHash := auth.NewSessionToken()
+	token, idHash := auth.NewToken()
 	if err := s.store.CreateSession(ctx, idHash, userID, auth.SessionExpiry(now)); err != nil {
 		return err
 	}

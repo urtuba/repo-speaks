@@ -5,18 +5,18 @@ import (
 	"time"
 )
 
-func TestNewSessionToken(t *testing.T) {
-	token, hash := NewSessionToken()
+func TestNewToken(t *testing.T) {
+	token, hash := NewToken()
 	if len(token) != 43 { // 32 bytes in unpadded base64
 		t.Errorf("token length = %d, want 43", len(token))
 	}
-	if hash != HashSessionToken(token) {
-		t.Error("returned hash does not match HashSessionToken(token)")
+	if hash != HashToken(token) {
+		t.Error("returned hash does not match HashToken(token)")
 	}
 	if hash == token {
 		t.Error("hash equals the token")
 	}
-	if other, _ := NewSessionToken(); other == token {
+	if other, _ := NewToken(); other == token {
 		t.Error("two tokens are equal")
 	}
 }
