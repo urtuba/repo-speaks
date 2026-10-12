@@ -97,18 +97,38 @@ func (s *Store) AddMember(ctx context.Context, projectID, userID int64, permissi
 		return fmt.Errorf("add member: %w", err)
 	}
 	defer tx.Rollback() // a no-op after Commit
-	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO memberships (project_id, user_id) VALUES (?, ?)", projectID, userID); err != nil {
+	if err := insertMember(ctx, tx, projectID, userID, 0, permissions); err != nil {
 		return fmt.Errorf("add member: %w", err)
+	}
+	return tx.Commit()
+}
+
+// insertMember adds a membership and its permissions inside tx.
+// invitedBy is 0 when nobody invited the member.
+func insertMember(ctx context.Context, tx *sql.Tx, projectID, userID, invitedBy int64, permissions []string) error {
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO memberships (project_id, user_id, invited_by) VALUES (?, ?, ?)",
+		projectID, userID, nullID(invitedBy)); err != nil {
+		return err
 	}
 	for _, p := range permissions {
 		if _, err := tx.ExecContext(ctx,
 			"INSERT INTO member_permissions (project_id, user_id, permission) VALUES (?, ?, ?)",
 			projectID, userID, p); err != nil {
-			return fmt.Errorf("add member: %w", err)
+			return err
 		}
 	}
-	return tx.Commit()
+	return nil
+}
+
+// RemoveMember takes an account out of a project. Its permissions go
+// with the membership (ON DELETE CASCADE). Its chats will stay.
+func (s *Store) RemoveMember(ctx context.Context, projectID, userID int64) error {
+	if _, err := s.db.ExecContext(ctx,
+		"DELETE FROM memberships WHERE project_id = ? AND user_id = ?", projectID, userID); err != nil {
+		return fmt.Errorf("remove member: %w", err)
+	}
+	return nil
 }
 
 // MemberPermissions returns the permission names an account holds in a

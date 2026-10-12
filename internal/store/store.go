@@ -20,11 +20,14 @@ type Store struct {
 
 // Open opens or creates the SQLite file at path, and brings its schema up
 // to date. WAL mode lets readers work while one writer writes;
-// busy_timeout makes a second writer wait instead of failing at once.
+// busy_timeout makes a second writer wait instead of failing at once;
+// synchronous(FULL) writes every commit to disk before it returns, so a
+// power cut loses nothing that was reported as saved.
 func Open(ctx context.Context, path string) (*Store, error) {
 	dsn := "file:" + path +
 		"?_pragma=journal_mode(WAL)" +
 		"&_pragma=busy_timeout(5000)" +
+		"&_pragma=synchronous(FULL)" +
 		"&_pragma=foreign_keys(1)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

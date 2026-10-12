@@ -28,6 +28,7 @@ func TestOpenSetsPragmas(t *testing.T) {
 		{"journal_mode", "wal"},
 		{"foreign_keys", "1"},
 		{"busy_timeout", "5000"},
+		{"synchronous", "2"}, // FULL
 	}
 	for _, tt := range tests {
 		t.Run(tt.pragma, func(t *testing.T) {
