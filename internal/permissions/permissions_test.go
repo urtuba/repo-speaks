@@ -13,7 +13,7 @@ func TestPresets(t *testing.T) {
 	}{
 		{PresetAsker, []Permission{PermResourcesView}},
 		{PresetBuilder, []Permission{PermResourcesView, PermResourcesEdit, PermAgentsEdit, PermMembersView}},
-		{PresetManager, []Permission{PermResourcesView, PermResourcesEdit, PermAgentsEdit, PermMembersView, PermMembersEdit}},
+		{PresetManager, []Permission{PermResourcesView, PermResourcesEdit, PermAgentsEdit, PermChatsView, PermMembersView, PermMembersEdit}},
 		{PresetAdmin, all},
 		{"unknown", nil},
 	}

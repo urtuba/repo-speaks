@@ -193,3 +193,19 @@ func TestPagesIncludeHTMXConfig(t *testing.T) {
 		}
 	}
 }
+
+// TestStoreKnowsEveryPermission checks that the database's permissions
+// table lists every permission the Go code has. A new permission needs a
+// migration too, and this test fails until it exists.
+func TestStoreKnowsEveryPermission(t *testing.T) {
+	app := newTestApp(t)
+	ctx := context.Background()
+	u := app.createUser("ayse", false)
+	p, err := app.store.CreateProject(ctx, "Clinic app", app.clock.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.store.AddMember(ctx, p.ID, u.ID, permissions.All().Strings()); err != nil {
+		t.Errorf("AddMember with every permission: %v", err)
+	}
+}

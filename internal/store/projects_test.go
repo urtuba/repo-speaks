@@ -122,3 +122,23 @@ func TestMembers(t *testing.T) {
 		t.Error("adding a member twice: no error")
 	}
 }
+
+func TestAddMemberRejectsUnknownPermission(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	u, err := s.CreateUser(ctx, "ayse", "hash", testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.CreateProject(ctx, "Clinic app", testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember(ctx, p.ID, u.ID, []string{"resources:view", "agents:use"}); err == nil {
+		t.Fatal("AddMember with agents:use: error = nil, want a foreign key error")
+	}
+	// The membership must not be half made.
+	if _, err := s.MemberPermissions(ctx, p.ID, u.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("after a failed AddMember: error = %v, want ErrNotFound", err)
+	}
+}

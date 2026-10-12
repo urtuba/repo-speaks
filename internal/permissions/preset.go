@@ -8,7 +8,7 @@ type Preset string
 const (
 	PresetAsker   Preset = "asker"   // views and asks questions, changes nothing
 	PresetBuilder Preset = "builder" // manages resources and agents
-	PresetManager Preset = "manager" // a builder who can also manage members
+	PresetManager Preset = "manager" // a builder who can also manage members and read all chats
 	PresetAdmin   Preset = "admin"   // a manager who can also edit the project
 )
 
@@ -19,7 +19,7 @@ var presets = []struct {
 }{
 	{PresetAsker, []Permission{PermResourcesView}},
 	{PresetBuilder, []Permission{PermResourcesEdit, PermAgentsEdit, PermMembersView}},
-	{PresetManager, []Permission{PermMembersEdit}},
+	{PresetManager, []Permission{PermMembersEdit, PermChatsView}},
 	{PresetAdmin, []Permission{PermProjectEdit}},
 }
 

@@ -37,11 +37,28 @@ CREATE TABLE memberships (
 
 CREATE INDEX memberships_user_id ON memberships (user_id);
 
+-- Every permission name the program knows. The foreign key below makes
+-- the database reject unknown names. A new permission is a new migration
+-- that inserts a row; a CHECK constraint could not change without
+-- rebuilding the table.
+CREATE TABLE permissions (
+	name TEXT PRIMARY KEY
+) STRICT;
+
+INSERT INTO permissions (name) VALUES
+	('resources:view'),
+	('resources:edit'),
+	('agents:edit'),
+	('chats:view'),
+	('members:view'),
+	('members:edit'),
+	('project:edit');
+
 -- One row per permission a member holds, such as 'members:view'.
 CREATE TABLE member_permissions (
 	project_id INTEGER NOT NULL,
 	user_id    INTEGER NOT NULL,
-	permission TEXT    NOT NULL,
+	permission TEXT    NOT NULL REFERENCES permissions (name),
 	PRIMARY KEY (project_id, user_id, permission),
 	FOREIGN KEY (project_id, user_id)
 		REFERENCES memberships (project_id, user_id) ON DELETE CASCADE

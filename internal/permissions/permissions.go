@@ -1,8 +1,9 @@
 // Package permissions models what a member may do in a project, and who
 // may grant which permission to whom.
 //
-// Membership itself lets a person chat with the project's agents and see
-// every agent's name and description. Everything else is a permission.
+// Membership itself lets a person chat with the project's agents, read
+// their own chats, and see every agent's name and description. Everything
+// else is a permission.
 package permissions
 
 import (
@@ -20,6 +21,7 @@ const (
 	PermResourcesView Permission = "resources:view" // read the project's resources
 	PermResourcesEdit Permission = "resources:edit" // add or remove resources
 	PermAgentsEdit    Permission = "agents:edit"    // create and edit agents, including prompts
+	PermChatsView     Permission = "chats:view"     // read every chat in the project, not only your own
 	PermMembersView   Permission = "members:view"   // see who is in the project
 	PermMembersEdit   Permission = "members:edit"   // invite and remove members, change their permissions
 	PermProjectEdit   Permission = "project:edit"   // rename the project, change its settings
@@ -30,6 +32,7 @@ var all = []Permission{
 	PermResourcesView,
 	PermResourcesEdit,
 	PermAgentsEdit,
+	PermChatsView,
 	PermMembersView,
 	PermMembersEdit,
 	PermProjectEdit,
@@ -41,6 +44,7 @@ var all = []Permission{
 var requires = map[Permission][]Permission{
 	PermResourcesEdit: {PermResourcesView},
 	PermAgentsEdit:    {PermResourcesView},
+	PermChatsView:     {PermResourcesView}, // chats show sources from the resources
 	PermMembersEdit:   {PermResourcesEdit, PermAgentsEdit, PermMembersView},
 	PermProjectEdit:   {PermMembersEdit},
 }
