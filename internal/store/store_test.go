@@ -6,13 +6,20 @@ import (
 	"testing"
 )
 
-func TestOpenSetsPragmas(t *testing.T) {
-	ctx := context.Background()
-	s, err := Open(ctx, filepath.Join(t.TempDir(), "test.db"))
+// openTest opens a new database in a temporary folder.
+func openTest(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func TestOpenSetsPragmas(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
 
 	tests := []struct {
 		pragma string
