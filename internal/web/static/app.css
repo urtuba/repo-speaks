@@ -362,6 +362,11 @@ input[readonly] {
 	align-items: flex-end;
 }
 
+.inline-form + .table,
+.inline-form + .empty {
+	margin-top: 24px;
+}
+
 .inline-form .field {
 	flex: 1;
 	margin-bottom: 0;
@@ -444,6 +449,14 @@ form.inline {
 	font-family: var(--mono);
 	font-size: 12px;
 	white-space: nowrap;
+}
+
+.badge.owner {
+	background: var(--primary);
+	border-color: var(--primary);
+	color: var(--primary-text);
+	font-family: var(--font);
+	font-weight: 500;
 }
 
 .alert {

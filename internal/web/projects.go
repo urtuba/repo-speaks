@@ -172,22 +172,33 @@ func (s *server) renderProject(w http.ResponseWriter, r *http.Request, status in
 // memberView is a member as the project page shows it.
 type memberView struct {
 	Username    string
+	IsOwner     bool                     // the instance owner, listed in every project
 	Permissions []permissions.Permission // in display order
 }
 
-// memberViews loads a project's members for display.
+// memberViews loads a project's members for display. The instance owner
+// comes first: they have every permission in every project without a
+// membership, and members should see who that is.
 func (s *server) memberViews(r *http.Request, projectID int64) ([]memberView, error) {
-	members, err := s.store.Members(r.Context(), projectID)
+	ctx := r.Context()
+	owner, err := s.store.Owner(ctx)
 	if err != nil {
 		return nil, err
 	}
-	views := make([]memberView, len(members))
-	for i, m := range members {
+	members, err := s.store.Members(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	views := []memberView{{Username: owner.Username, IsOwner: true}}
+	for _, m := range members {
+		if m.UserID == owner.ID {
+			continue // already listed as the owner
+		}
 		set, err := permissions.ParseSet(m.Permissions)
 		if err != nil {
 			return nil, err
 		}
-		views[i] = memberView{Username: m.Username, Permissions: set.List()}
+		views = append(views, memberView{Username: m.Username, Permissions: set.List()})
 	}
 	return views, nil
 }

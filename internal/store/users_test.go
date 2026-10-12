@@ -125,3 +125,25 @@ func TestDeleteUserEndsSessionsAndMemberships(t *testing.T) {
 		t.Errorf("Members() = %v, %v, want none", members, err)
 	}
 }
+
+func TestOwner(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	if _, err := s.Owner(ctx); !errors.Is(err, ErrNotFound) {
+		t.Errorf("before setup: error = %v, want ErrNotFound", err)
+	}
+	owner, err := s.CreateOwner(ctx, "samed", "hash", testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateUser(ctx, "ayse", "hash", testNow); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Owner(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != owner {
+		t.Errorf("Owner() = %+v, want %+v", got, owner)
+	}
+}

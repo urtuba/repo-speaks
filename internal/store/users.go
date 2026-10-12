@@ -96,6 +96,18 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (User, erro
 	return u, nil
 }
 
+// Owner returns the instance owner, or ErrNotFound before setup.
+func (s *Store) Owner(ctx context.Context) (User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, username, password_hash, is_owner, created_at
+		FROM users WHERE is_owner = 1`)
+	u, err := scanUser(row)
+	if err != nil {
+		return User{}, fmt.Errorf("owner: %w", err)
+	}
+	return u, nil
+}
+
 // UserByID returns the account with the id, or ErrNotFound.
 func (s *Store) UserByID(ctx context.Context, id int64) (User, error) {
 	row := s.db.QueryRowContext(ctx, `

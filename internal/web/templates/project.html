@@ -32,7 +32,6 @@
 			<h2>Members</h2>
 		</div>
 		{{if .CanSeeMembers}}
-		{{if .Members}}
 		<table class="table">
 			<thead>
 				<tr><th>Username</th><th>Permissions</th></tr>
@@ -40,19 +39,21 @@
 			<tbody>
 				{{range .Members}}
 				<tr>
-					<td>{{.Username}}</td>
+					<td>{{.Username}}{{if .IsOwner}} <span class="badge owner">owner</span>{{end}}</td>
 					<td>
+						{{if .IsOwner}}
+						<span class="muted small">Every permission, in every project</span>
+						{{else}}
 						<div class="badges">
 							{{range .Permissions}}<span class="badge">{{.}}</span>{{else}}<span class="muted small">Asks only</span>{{end}}
 						</div>
+						{{end}}
 					</td>
 				</tr>
 				{{end}}
 			</tbody>
 		</table>
-		{{else}}
-		<p class="empty">No members yet.</p>
-		{{end}}
+		{{if eq (len .Members) 1}}<p class="empty">No other members yet.{{if .CanInvite}} Invite someone below.{{end}}</p>{{end}}
 		{{else}}
 		<p class="muted">You cannot see the members of this project.</p>
 		{{end}}
