@@ -179,9 +179,10 @@ erDiagram
     agents {
         int id PK
         int project_id FK "cascade"
+        text kind "chat or answer; fixed at creation"
         text name
         text description "every member sees it"
-        text prompt "agents:edit only"
+        text prompt "agents:edit only; holds the answer format"
         bool attachments_on "default false"
         bool all_resources "default true; false = agent_resources"
         time created_at
@@ -232,6 +233,7 @@ erDiagram
 - IDs are integers. Times are Unix seconds. Tables are SQLite `STRICT`.
 - Deleting a project deletes everything in it.
 - Chats stay when a member leaves, or an agent or account is deleted. Each project chooses how long chats live: forever (default), 30, 90 or 365 days.
+- An answer agent's chat holds exactly one question and one answer. The app refuses a second question.
 - Session IDs and link tokens are stored only as SHA-256 hashes.
 - `member_permissions` references `permissions`, so the database rejects unknown names.
 

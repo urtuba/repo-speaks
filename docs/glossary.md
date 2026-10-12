@@ -19,8 +19,10 @@ One meaning per word. Code, UI and docs use these terms.
 | Connection | Repo Speaks' access to GitHub. |
 | Resource | One repository or markdown folder added to a project through a connection. |
 | Sync | Bringing a resource up to date with GitHub. |
-| Agent | Instructions, enabled resources and a rate limit, inside one project. |
-| Chat | A conversation between one member and one agent. The member who started it can always read it; members with `chats:view` can read every chat. |
+| Agent | Instructions, enabled resources and a rate limit, inside one project. A chat agent or an answer agent. |
+| Chat agent | An agent for conversations: many questions and answers in one chat. |
+| Answer agent | An agent that takes one question and gives one answer, in the format its instructions set. No follow-ups. |
+| Chat | A conversation between one member and one agent. With an answer agent, it holds one question and one answer. The member who started it can always read it; members with `chats:view` can read every chat. |
 | Source | A file or document listed under an answer, so a reader can check it. |
 
 ## Words to avoid
@@ -31,3 +33,4 @@ One meaning per word. Code, UI and docs use these terms.
 | Source (for GitHub access) | Connection |
 | Owner (for a project role) | Admin |
 | Citation | Source |
+| Q&A agent | Answer agent |
