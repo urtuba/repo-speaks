@@ -51,6 +51,10 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		Addr:              cfg.Addr,
 		Handler:           web.New(st, logger),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		// No WriteTimeout: it would cut streamed answers. A streaming
+		// handler sets its own with http.ResponseController.
 	}
 
 	g, ctx := errgroup.WithContext(ctx)

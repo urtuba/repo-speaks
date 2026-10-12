@@ -39,7 +39,7 @@ func New(st *store.Store, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("GET /status", s.status)
 	mux.HandleFunc("GET /healthz", s.healthz)
-	return logRequests(logger, mux)
+	return middlewares(logger, mux)
 }
 
 // home renders the start page.
