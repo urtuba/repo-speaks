@@ -313,24 +313,73 @@ erDiagram
 - Session IDs and link tokens are stored only as SHA-256 hashes.
 - `member_permissions` references `permissions`, so the database rejects unknown names.
 
+## Components of the App
+
+Zooming into the App container. Each component is one Go package under `internal/`.
+
+```mermaid
+flowchart TB
+    builder["<b>Builder</b><br/>Person"]
+    asker["<b>Asker</b><br/>Person"]
+
+    subgraph app ["App (Go, one process)"]
+        web["<b>web</b><br/>Pages, forms and streamed answers.<br/>Security headers, sessions"]
+        auth["<b>auth</b><br/>Passwords, session tokens,<br/>invite links, login throttle"]
+        perms["<b>permissions</b><br/>Permissions, presets,<br/>grant rules"]
+        agent["<b>agent</b><br/>Chats, the tool loop,<br/>read-only tools, chat clean-up"]
+        llm["<b>llm</b><br/>Talks to the LLM provider<br/>(provider: open)"]
+        jobs["<b>jobs</b><br/>Claims job rows, runs timers,<br/>hands each job on"]
+        sync["<b>sync</b><br/>Clones and refreshes<br/>one resource"]
+        store["<b>store</b><br/>SQL access and migrations"]
+    end
+
+    db[("<b>Database</b><br/>SQLite file")]
+    files[("<b>File storage</b><br/>Repository clones")]
+    llmapi["<b>LLM API</b><br/>External system"]
+    gh["<b>GitHub</b><br/>External system"]
+
+    builder -- "Manages projects (HTTPS)" --> web
+    asker -- "Asks questions (HTTPS, SSE)" --> web
+    web -- "Checks logins" --> auth
+    web -- "Checks what a member may do" --> perms
+    web -- "Sends questions, streams answers" --> agent
+    web -- "Reads and writes data, queues jobs" --> store
+    agent -- "Sends prompts and tool results" --> llm
+    agent -- "Loads agents, saves messages" --> store
+    agent -- "Reads files of the agent's resources" --> files
+    jobs -- "Claims jobs, queues timed ones" --> store
+    jobs -- "Runs sync jobs" --> sync
+    jobs -- "Runs chat clean-up" --> agent
+    sync -- "Saves sync results" --> store
+    sync -- "Fetches code (HTTPS)" --> gh
+    sync -- "Writes clones" --> files
+    store -- "SQL" --> db
+    llm -- "HTTPS" --> llmapi
+```
+
+- **Two entry points.** People come in through `web`. Timers and queued work run in `jobs`. `main.go` starts both.
+- **`web` never calls `sync`.** It queues a job row, so the database is the only link between them. A restart loses no work.
+- **Only `store` knows SQL, and only `llm` knows the provider.** Neither uses anything else from the app.
+- **Where trust changes:** file content from a repository reaches the LLM. A file can carry instructions for the agent (prompt injection), so the agent's tools only read, and only inside the agent's resources.
+- Indexing (open) would be one more component between `sync` and `agent`.
+
 ## Code map
 
-Planned layout. Packages are named by what they provide.
-
 ```
-main.go              read config, wire packages, start the server
+main.go              read config, wire packages, start the web server and the jobs loop
 internal/
   web/               HTTP handlers, middleware, templates, static files (embedded)
-  auth/              accounts, passwords, sessions, invite links
+  auth/              passwords, sessions, invite links, login throttle
   permissions/       permissions, presets, Grant
   store/             SQLite access and migrations
-  sync/              clone and refresh resources; the job worker loop
-  agent/             agent settings, conversations, the tool loop and its tools
+  jobs/              the job loop and timers; hands each job to sync or agent
+  sync/              clone and refresh one resource
+  agent/             agent settings, chats, the tool loop and its tools, chat clean-up
   llm/               the connection to the LLM provider
   config/            settings from the environment
 ```
 
-Dependencies point one way: `web` uses the others; `store` and `llm` use nothing from the app. Everything provider-specific stays in `llm`.
+Built so far: `web`, `auth`, `permissions`, `store`, `config`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app.
 
 ## Known risks
 
