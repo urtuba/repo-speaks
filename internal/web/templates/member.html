@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" .Member.Username}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a> /</p>
+			<h1>{{.Member.Username}}</h1>
+		</div>
+	</div>
+
+	<section class="card">
+		<div class="card-head">
+			<h2>Permissions</h2>
+			<span class="muted small">Role: {{.Role}}</span>
+		</div>
+		<p class="muted">Every member can ask the project's agents. Ticking a permission also ticks what it needs.</p>
+
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+
+		<form method="post" action="/projects/{{.Project.ID}}/members/{{.Member.ID}}">
+			<ul class="checks" data-permissions>
+				{{range .Checkboxes}}
+				<li>
+					<label>
+						<input type="checkbox" name="permission" value="{{.Name}}" data-requires="{{.Requires}}"{{if .Checked}} checked{{end}}{{if not .Allowed}} disabled{{end}}>
+						<span>
+							<span class="badge">{{.Name}}</span>
+							<span class="check-hint">{{.Hint}}{{if not .Allowed}} You do not hold this one, so you cannot give it.{{end}}</span>
+						</span>
+					</label>
+				</li>
+				{{end}}
+			</ul>
+			<div class="form-actions">
+				<button class="button">Save</button>
+				<a class="button secondary" href="/projects/{{.Project.ID}}#members">Cancel</a>
+			</div>
+		</form>
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

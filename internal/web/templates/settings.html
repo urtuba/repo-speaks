@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Settings"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a> /</p>
+			<h1>Settings</h1>
+		</div>
+	</div>
+
+	<section class="card">
+		<div class="card-head">
+			<h2>Name</h2>
+		</div>
+		{{if .Saved}}<p class="alert success" role="status">Saved.</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/settings">
+			<div class="field">
+				<label for="name">Project name</label>
+				<input id="name" name="name" value="{{.Name}}" required maxlength="100">
+			</div>
+			<button class="button">Save</button>
+		</form>
+	</section>
+
+	{{if .User.IsOwner}}
+	<section class="card danger-zone">
+		<div class="card-head">
+			<h2>Delete project</h2>
+		</div>
+		<p class="muted">This deletes the project with its members, invite links, agents and chats. The accounts stay. It cannot be undone.</p>
+		{{with .DeleteError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/delete">
+			<div class="field">
+				<label for="confirm">Type <strong>{{.Project.Name}}</strong> to confirm</label>
+				<input id="confirm" name="confirm" required autocomplete="off">
+			</div>
+			<button class="button danger-solid">Delete project</button>
+		</form>
+	</section>
+	{{end}}
+</main>
+{{template "footer"}}
+</body>
+</html>

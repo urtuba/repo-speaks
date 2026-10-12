@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/urtuba/repo-speaks/internal/permissions"
 	"github.com/urtuba/repo-speaks/internal/store"
@@ -53,9 +51,9 @@ func (s *server) createProject(w http.ResponseWriter, r *http.Request) {
 	if !parseForm(w, r) {
 		return
 	}
-	name := strings.TrimSpace(r.PostFormValue("name"))
-	if n := utf8.RuneCountInString(name); n == 0 || n > maxProjectName {
-		http.Error(w, "A project name must be 1 to 100 characters.", http.StatusBadRequest)
+	name, msg := projectName(r.PostFormValue("name"))
+	if msg != "" {
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	p, err := s.store.CreateProject(r.Context(), name, s.now())
@@ -127,6 +125,8 @@ type projectPage struct {
 	User          *store.User
 	Project       store.Project
 	Permissions   []permissions.Permission
+	IsMember      bool // false for the owner, who has no membership to leave
+	CanEdit       bool // project:edit, for the settings link
 	CanSeeMembers bool
 	Members       []memberView
 	CanInvite     bool
@@ -144,13 +144,15 @@ func (s *server) renderProject(w http.ResponseWriter, r *http.Request, status in
 		User:          &sess.user,
 		Project:       p,
 		Permissions:   perms.List(),
+		IsMember:      !sess.user.IsOwner,
+		CanEdit:       perms.Has(permissions.PermProjectEdit),
 		CanSeeMembers: perms.Has(permissions.PermMembersView),
 		CanInvite:     perms.Has(permissions.PermMembersEdit),
 		Error:         errMsg,
 	}
 	var err error
 	if data.CanSeeMembers {
-		if data.Members, err = s.memberViews(r, p.ID); err != nil {
+		if data.Members, err = s.memberViews(r, p.ID, sess.user.ID, perms); err != nil {
 			s.serverError(w, r, err)
 			return
 		}
@@ -171,15 +173,20 @@ func (s *server) renderProject(w http.ResponseWriter, r *http.Request, status in
 
 // memberView is a member as the project page shows it.
 type memberView struct {
+	UserID      int64
 	Username    string
 	IsOwner     bool                     // the instance owner, listed in every project
+	IsViewer    bool                     // the person looking at the page
+	CanManage   bool                     // the viewer may change or remove this member
+	Role        string                   // the matching preset, or "custom"
 	Permissions []permissions.Permission // in display order
 }
 
-// memberViews loads a project's members for display. The instance owner
-// comes first: they have every permission in every project without a
-// membership, and members should see who that is.
-func (s *server) memberViews(r *http.Request, projectID int64) ([]memberView, error) {
+// memberViews loads a project's members for display, as seen by the
+// viewer with their permissions. The instance owner comes first: they
+// have every permission in every project without a membership, and
+// members should see who that is.
+func (s *server) memberViews(r *http.Request, projectID, viewerID int64, viewer permissions.Set) ([]memberView, error) {
 	ctx := r.Context()
 	owner, err := s.store.Owner(ctx)
 	if err != nil {
@@ -189,7 +196,7 @@ func (s *server) memberViews(r *http.Request, projectID int64) ([]memberView, er
 	if err != nil {
 		return nil, err
 	}
-	views := []memberView{{Username: owner.Username, IsOwner: true}}
+	views := []memberView{{UserID: owner.ID, Username: owner.Username, IsOwner: true, IsViewer: owner.ID == viewerID}}
 	for _, m := range members {
 		if m.UserID == owner.ID {
 			continue // already listed as the owner
@@ -198,7 +205,14 @@ func (s *server) memberViews(r *http.Request, projectID int64) ([]memberView, er
 		if err != nil {
 			return nil, err
 		}
-		views = append(views, memberView{Username: m.Username, Permissions: set.List()})
+		views = append(views, memberView{
+			UserID:      m.UserID,
+			Username:    m.Username,
+			IsViewer:    m.UserID == viewerID,
+			CanManage:   m.UserID != viewerID && permissions.CanManage(viewer, set),
+			Role:        roleName(set),
+			Permissions: set.List(),
+		})
 	}
 	return views, nil
 }

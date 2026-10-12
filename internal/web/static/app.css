@@ -477,6 +477,83 @@ form.inline {
 	color: var(--text);
 }
 
+/* Permission checkboxes */
+
+.checks {
+	margin: 0 0 20px;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--border);
+}
+
+.checks li {
+	border-bottom: 1px solid var(--border);
+}
+
+.checks label {
+	display: flex;
+	gap: 12px;
+	align-items: flex-start;
+	padding: 12px 0;
+	cursor: pointer;
+}
+
+.checks input {
+	width: 16px;
+	height: 16px;
+	margin-top: 3px;
+	flex: none;
+	accent-color: var(--primary);
+}
+
+.check-hint {
+	display: block;
+	margin-top: 4px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+/* A permission another ticked one needs. The script sets data-locked. */
+.checks input[data-locked="true"] {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.checks input[data-locked="true"] + span .badge::after {
+	content: " needed";
+	color: var(--muted);
+	font-family: var(--font);
+}
+
+.checks input:disabled + span {
+	opacity: 0.5;
+}
+
+.form-actions,
+.head-actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+/* Destructive actions */
+
+.danger-zone {
+	border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.button.danger-solid {
+	background: var(--danger);
+	border-color: var(--danger);
+	color: #ffffff;
+}
+
+.button.danger-solid:hover {
+	background: color-mix(in srgb, var(--danger) 85%, #000000);
+	border-color: color-mix(in srgb, var(--danger) 85%, #000000);
+	color: #ffffff;
+}
+
 /* Footer */
 
 .footer {

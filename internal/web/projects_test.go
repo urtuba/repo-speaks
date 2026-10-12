@@ -81,9 +81,9 @@ func TestProjectPage(t *testing.T) {
 		notWant    []string
 	}{
 		{"owner without membership", "samed", path, http.StatusOK,
-			[]string{"Clinic app", "instance owner", "project:edit", "<td>bora</td>", "<td>asli</td>", "Invite links"}, nil},
+			[]string{"Clinic app", "instance owner", "project:edit", "<td>bora", "<td>asli</td>", "Invite links"}, nil},
 		{"builder sees members", "bora", path, http.StatusOK,
-			[]string{"Clinic app", "agents:edit", "members:view", "<td>bora</td>", "<td>asli</td>", `samed <span class="badge owner">owner</span>`},
+			[]string{"Clinic app", "agents:edit", "members:view", "<td>bora", "<td>asli</td>", `samed <span class="badge owner">owner</span>`},
 			[]string{"members:edit", "cannot see the members", "Invite links"}},
 		{"asker does not see members", "asli", path, http.StatusOK,
 			[]string{"Clinic app", "resources:view", "You cannot see the members"},
