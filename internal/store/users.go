@@ -128,19 +128,23 @@ func (s *Store) SetPassword(ctx context.Context, userID int64, passwordHash stri
 		return fmt.Errorf("set password: %w", err)
 	}
 	defer tx.Rollback() // a no-op after Commit
-	res, err := tx.ExecContext(ctx, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, userID)
-	if err != nil {
-		return fmt.Errorf("set password: %w", err)
-	}
-	if n, err := res.RowsAffected(); err != nil {
-		return fmt.Errorf("set password: %w", err)
-	} else if n == 0 {
-		return fmt.Errorf("set password for user %d: %w", userID, ErrNotFound)
-	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID); err != nil {
+	if err := setPassword(ctx, tx, userID, passwordHash); err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
 	return tx.Commit()
+}
+
+// setPassword changes the password and ends all sessions inside tx.
+func setPassword(ctx context.Context, tx *sql.Tx, userID int64, passwordHash string) error {
+	res, err := tx.ExecContext(ctx, "UPDATE users SET password_hash = ? WHERE id = ?", passwordHash, userID)
+	if err != nil {
+		return err
+	}
+	if err := oneRow(res, fmt.Sprintf("user %d", userID)); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID)
+	return err
 }
 
 // DeleteUser removes an account. Its sessions and memberships go with it
