@@ -33,7 +33,7 @@ func newInviteApp(t *testing.T) inviteApp {
 	app.createUser("samed", true)
 	manager := app.createUser("mert", false)
 	builder := app.createUser("bora", false)
-	p, err := app.store.CreateProject(ctx, "Clinic app", app.clock.now())
+	p, err := app.store.CreateProject(ctx, "Customer portal", app.clock.now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestInviteForAMember(t *testing.T) {
 
 	// bora is already a builder in the project.
 	c := app.login("bora")
-	if body := app.get(path, c).Body.String(); !strings.Contains(body, "You are already in Clinic app") {
+	if body := app.get(path, c).Body.String(); !strings.Contains(body, "You are already in Customer portal") {
 		t.Errorf("GET link as a member: want the already-a-member page\n%s", body)
 	}
 	if rec := app.post(path, nil, c); rec.Code != http.StatusConflict {

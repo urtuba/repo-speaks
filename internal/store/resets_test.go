@@ -95,9 +95,9 @@ func TestAccountProjects(t *testing.T) {
 	s := openTest(t)
 	ayse, _ := s.CreateUser(ctx, "ayse", "hash", testNow)
 	bora, _ := s.CreateUser(ctx, "bora", "hash", testNow)
-	clinic, _ := s.CreateProject(ctx, "Clinic app", testNow)
+	portal, _ := s.CreateProject(ctx, "Customer portal", testNow)
 	billing, _ := s.CreateProject(ctx, "Billing", testNow)
-	if err := s.AddMember(ctx, clinic.ID, ayse.ID, []string{"resources:view", "agents:edit"}); err != nil {
+	if err := s.AddMember(ctx, portal.ID, ayse.ID, []string{"resources:view", "agents:edit"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.AddMember(ctx, billing.ID, ayse.ID, nil); err != nil {
@@ -111,7 +111,7 @@ func TestAccountProjects(t *testing.T) {
 	want := map[int64][]AccountProject{
 		ayse.ID: {
 			{ProjectID: billing.ID, Name: "Billing", Permissions: []string{}},
-			{ProjectID: clinic.ID, Name: "Clinic app", Permissions: []string{"agents:edit", "resources:view"}},
+			{ProjectID: portal.ID, Name: "Customer portal", Permissions: []string{"agents:edit", "resources:view"}},
 		},
 	}
 	if !reflect.DeepEqual(got, want) {

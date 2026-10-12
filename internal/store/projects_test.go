@@ -15,7 +15,7 @@ func TestProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clinic, err := s.CreateProject(ctx, "Clinic app", testNow)
+	portal, err := s.CreateProject(ctx, "Customer portal", testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,16 +23,16 @@ func TestProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddMember(ctx, clinic.ID, ayse.ID, nil); err != nil {
+	if err := s.AddMember(ctx, portal.ID, ayse.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := s.Project(ctx, clinic.ID)
+	got, err := s.Project(ctx, portal.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != clinic {
-		t.Errorf("Project() = %+v, want %+v", got, clinic)
+	if got != portal {
+		t.Errorf("Project() = %+v, want %+v", got, portal)
 	}
 	if _, err := s.Project(ctx, 999); !errors.Is(err, ErrNotFound) {
 		t.Errorf("missing project: error = %v, want ErrNotFound", err)
@@ -42,7 +42,7 @@ func TestProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []Project{billing, clinic}; !reflect.DeepEqual(all, want) {
+	if want := []Project{billing, portal}; !reflect.DeepEqual(all, want) {
 		t.Errorf("AllProjects() = %+v, want %+v", all, want)
 	}
 
@@ -50,7 +50,7 @@ func TestProjects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []Project{clinic}; !reflect.DeepEqual(mine, want) {
+	if want := []Project{portal}; !reflect.DeepEqual(mine, want) {
 		t.Errorf("UserProjects() = %+v, want %+v", mine, want)
 	}
 }
@@ -58,7 +58,7 @@ func TestProjects(t *testing.T) {
 func TestMembers(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)
-	p, err := s.CreateProject(ctx, "Clinic app", testNow)
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestAddMemberRejectsUnknownPermission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.CreateProject(ctx, "Clinic app", testNow)
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestSetMemberPermissions(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)
 	u, _ := s.CreateUser(ctx, "ayse", "hash", testNow)
-	p, _ := s.CreateProject(ctx, "Clinic app", testNow)
+	p, _ := s.CreateProject(ctx, "Customer portal", testNow)
 	if err := s.AddMember(ctx, p.ID, u.ID, []string{"resources:view"}); err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestRenameAndDeleteProject(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)
 	u, _ := s.CreateUser(ctx, "ayse", "hash", testNow)
-	p, _ := s.CreateProject(ctx, "Clinic app", testNow)
+	p, _ := s.CreateProject(ctx, "Customer portal", testNow)
 	if err := s.AddMember(ctx, p.ID, u.ID, []string{"resources:view"}); err != nil {
 		t.Fatal(err)
 	}
@@ -190,11 +190,11 @@ func TestRenameAndDeleteProject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.RenameProject(ctx, p.ID, "Clinic"); err != nil {
+	if err := s.RenameProject(ctx, p.ID, "Portal"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := s.Project(ctx, p.ID); got.Name != "Clinic" {
-		t.Errorf("name = %q, want Clinic", got.Name)
+	if got, _ := s.Project(ctx, p.ID); got.Name != "Portal" {
+		t.Errorf("name = %q, want Portal", got.Name)
 	}
 	if err := s.RenameProject(ctx, 999, "x"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("rename missing project: error = %v, want ErrNotFound", err)

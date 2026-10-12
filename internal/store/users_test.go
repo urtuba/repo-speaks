@@ -104,7 +104,7 @@ func TestDeleteUserEndsSessionsAndMemberships(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.CreateProject(ctx, "Clinic app", testNow)
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
 	if err != nil {
 		t.Fatal(err)
 	}

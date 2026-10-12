@@ -52,7 +52,7 @@ func TestAccountsPage(t *testing.T) {
 	app.createUser("samed", true)
 	ayse := app.createUser("ayse", false)
 	app.createUser("bora", false)
-	p, err := app.store.CreateProject(context.Background(), "Clinic app", app.clock.now())
+	p, err := app.store.CreateProject(context.Background(), "Customer portal", app.clock.now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestAccountsPage(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		`<a href="/projects/1">Clinic app</a> <span class="muted small">builder</span>`,
+		`<a href="/projects/1">Customer portal</a> <span class="muted small">builder</span>`,
 		"No projects",   // bora
 		"Every project", // the owner
 	} {

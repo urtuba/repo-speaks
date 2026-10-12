@@ -24,7 +24,7 @@ func TestCreateProject(t *testing.T) {
 		project    string
 		wantStatus int
 	}{
-		{"owner", owner, "Clinic app", http.StatusSeeOther},
+		{"owner", owner, "Customer portal", http.StatusSeeOther},
 		{"not the owner", other, "Billing", http.StatusForbidden},
 		{"not logged in", nil, "Billing", http.StatusSeeOther},
 		{"empty name", owner, "   ", http.StatusBadRequest},
@@ -43,8 +43,8 @@ func TestCreateProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(all) != 1 || all[0].Name != "Clinic app" {
-		t.Errorf("projects = %+v, want only Clinic app", all)
+	if len(all) != 1 || all[0].Name != "Customer portal" {
+		t.Errorf("projects = %+v, want only Customer portal", all)
 	}
 	rec := app.post("/projects", url.Values{"name": {"Billing"}}, owner)
 	if got, want := rec.Header().Get("Location"), "/projects/2"; got != want {
@@ -60,7 +60,7 @@ func TestProjectPage(t *testing.T) {
 	asker := app.createUser("asli", false)
 	app.createUser("omer", false) // has no membership
 
-	p, err := app.store.CreateProject(ctx, "Clinic app", app.clock.now())
+	p, err := app.store.CreateProject(ctx, "Customer portal", app.clock.now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,14 +81,14 @@ func TestProjectPage(t *testing.T) {
 		notWant    []string
 	}{
 		{"owner without membership", "samed", path, http.StatusOK,
-			[]string{"Clinic app", "instance owner", "project:edit", "<td>bora", "<td>asli</td>", "Invite links"}, nil},
+			[]string{"Customer portal", "instance owner", "project:edit", "<td>bora", "<td>asli</td>", "Invite links"}, nil},
 		{"builder sees members", "bora", path, http.StatusOK,
-			[]string{"Clinic app", "agents:edit", "members:view", "<td>bora", "<td>asli</td>", `samed <span class="badge owner">owner</span>`},
+			[]string{"Customer portal", "agents:edit", "members:view", "<td>bora", "<td>asli</td>", `samed <span class="badge owner">owner</span>`},
 			[]string{"members:edit", "cannot see the members", "Invite links"}},
 		{"asker does not see members", "asli", path, http.StatusOK,
-			[]string{"Clinic app", "resources:view", "You cannot see the members"},
+			[]string{"Customer portal", "resources:view", "You cannot see the members"},
 			[]string{"bora", "agents:edit", "badge owner"}},
-		{"outsider gets 404", "omer", path, http.StatusNotFound, nil, []string{"Clinic app"}},
+		{"outsider gets 404", "omer", path, http.StatusNotFound, nil, []string{"Customer portal"}},
 		{"missing project", "samed", "/projects/999", http.StatusNotFound, nil, nil},
 		{"bad id", "samed", "/projects/abc", http.StatusNotFound, nil, nil},
 	}
@@ -129,9 +129,9 @@ func TestHomeListsProjects(t *testing.T) {
 	ctx := context.Background()
 	app.createUser("samed", true)
 	member := app.createUser("ayse", false)
-	clinic, _ := app.store.CreateProject(ctx, "Clinic app", app.clock.now())
+	portal, _ := app.store.CreateProject(ctx, "Customer portal", app.clock.now())
 	app.store.CreateProject(ctx, "Billing", app.clock.now())
-	if err := app.store.AddMember(ctx, clinic.ID, member.ID, nil); err != nil {
+	if err := app.store.AddMember(ctx, portal.ID, member.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,8 +140,8 @@ func TestHomeListsProjects(t *testing.T) {
 		want     []string
 		notWant  []string
 	}{
-		{"samed", []string{"Clinic app", "Billing", `action="/projects"`}, nil},
-		{"ayse", []string{"Clinic app"}, []string{"Billing", `action="/projects"`}},
+		{"samed", []string{"Customer portal", "Billing", `action="/projects"`}, nil},
+		{"ayse", []string{"Customer portal"}, []string{"Billing", `action="/projects"`}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.username, func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestPagesIncludeHTMXConfig(t *testing.T) {
 	}
 
 	app.createUser("samed", true)
-	app.store.CreateProject(context.Background(), "Clinic app", app.clock.now())
+	app.store.CreateProject(context.Background(), "Customer portal", app.clock.now())
 	c := app.login("samed")
 	for _, p := range []struct {
 		name   string
@@ -200,7 +200,7 @@ func TestStoreKnowsEveryPermission(t *testing.T) {
 	app := newTestApp(t)
 	ctx := context.Background()
 	u := app.createUser("ayse", false)
-	p, err := app.store.CreateProject(ctx, "Clinic app", app.clock.now())
+	p, err := app.store.CreateProject(ctx, "Customer portal", app.clock.now())
 	if err != nil {
 		t.Fatal(err)
 	}

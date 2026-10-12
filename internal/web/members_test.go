@@ -217,12 +217,12 @@ func TestSettings(t *testing.T) {
 	if rec := app.post(settings, url.Values{"name": {"  "}}, ada); rec.Code != http.StatusBadRequest {
 		t.Errorf("empty name: status = %d, want 400", rec.Code)
 	}
-	rec := app.post(settings, url.Values{"name": {" Clinic "}}, ada)
+	rec := app.post(settings, url.Values{"name": {" Portal "}}, ada)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != settings+"?saved=1" {
 		t.Fatalf("rename: status = %d, location = %q", rec.Code, rec.Header().Get("Location"))
 	}
-	if p, _ := app.store.Project(context.Background(), app.project.ID); p.Name != "Clinic" {
-		t.Errorf("name = %q, want Clinic", p.Name)
+	if p, _ := app.store.Project(context.Background(), app.project.ID); p.Name != "Portal" {
+		t.Errorf("name = %q, want Portal", p.Name)
 	}
 }
 
@@ -230,17 +230,17 @@ func TestDeleteProject(t *testing.T) {
 	app := newMemberApp(t)
 	del := projectPath(app.project.ID) + "/delete"
 
-	if rec := app.post(del, url.Values{"confirm": {"Clinic app"}}, app.login("ada")); rec.Code != http.StatusForbidden {
+	if rec := app.post(del, url.Values{"confirm": {"Customer portal"}}, app.login("ada")); rec.Code != http.StatusForbidden {
 		t.Errorf("admin deletes: status = %d, want 403", rec.Code)
 	}
 	owner := app.login("samed")
-	if rec := app.post(del, url.Values{"confirm": {"clinic app"}}, owner); rec.Code != http.StatusBadRequest {
+	if rec := app.post(del, url.Values{"confirm": {"customer portal"}}, owner); rec.Code != http.StatusBadRequest {
 		t.Errorf("wrong name: status = %d, want 400", rec.Code)
 	}
 	if _, err := app.store.Project(context.Background(), app.project.ID); err != nil {
 		t.Fatalf("project gone after a wrong name: %v", err)
 	}
-	rec := app.post(del, url.Values{"confirm": {"Clinic app"}}, owner)
+	rec := app.post(del, url.Values{"confirm": {"Customer portal"}}, owner)
 	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/" {
 		t.Fatalf("delete: status = %d, location = %q, want 303 to /", rec.Code, rec.Header().Get("Location"))
 	}

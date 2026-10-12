@@ -1,3 +1,5 @@
+<img src="internal/web/static/logo.svg" width="64" height="64" alt="">
+
 # Repo Speaks
 
 Ask your codebase questions in plain language. A self-hosted chat for people who don't read code.
@@ -6,7 +8,7 @@ Ask your codebase questions in plain language. A self-hosted chat for people who
 
 ## What it is
 
-A developer connects GitHub repositories and markdown docs to a project, sets up agents, and invites teammates. Teammates such as product people, clinicians or support staff ask questions. They get advisory answers with sources, without access to the repository.
+A developer connects GitHub repositories and markdown docs to a project, sets up agents, and invites teammates. Teammates such as product managers, operations, marketing, managers or clients ask questions. They get advisory answers with sources, without access to the repository.
 
 ## Development
 

@@ -24,7 +24,7 @@ func newInviteFixture(t *testing.T) inviteFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.CreateProject(ctx, "Clinic app", testNow)
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestInviteByHash(t *testing.T) {
 	want := Invite{
 		ID:            f.invite.ID,
 		ProjectID:     f.project.ID,
-		ProjectName:   "Clinic app",
+		ProjectName:   "Customer portal",
 		Preset:        "asker",
 		CreatedBy:     f.manager.ID,
 		CreatedByName: "mert",
