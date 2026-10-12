@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Log in"}}
+</head>
+<body>
+	<h1>Log in</h1>
+
+	{{with .Error}}<p role="alert">{{.}}</p>{{end}}
+
+	<form method="post" action="/login">
+		<p><label>Username <input name="username" value="{{.Username}}" required autocomplete="username"></label></p>
+		<p><label>Password <input name="password" type="password" required autocomplete="current-password"></label></p>
+		<button>Log in</button>
+	</form>
+</body>
+</html>

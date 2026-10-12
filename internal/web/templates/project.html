@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" .Project.Name}}
+</head>
+<body>
+	<p><a href="/">Home</a></p>
+	<h1>{{.Project.Name}}</h1>
+
+	<h2>Your permissions</h2>
+	{{if .IsOwner}}<p>You are the instance owner, so you have every permission.</p>{{end}}
+	<ul>
+		{{range .Permissions}}
+		<li>{{.}}</li>
+		{{else}}
+		<li>None. As a member, you can chat with this project's agents.</li>
+		{{end}}
+	</ul>
+
+	<h2>Members</h2>
+	{{if .CanSeeMembers}}
+	<ul>
+		{{range .Members}}
+		<li>{{.Username}}{{with .Permissions}}: {{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}</li>
+		{{else}}
+		<li>No members yet.</li>
+		{{end}}
+	</ul>
+	{{else}}
+	<p>You cannot see the members of this project.</p>
+	{{end}}
+</body>
+</html>

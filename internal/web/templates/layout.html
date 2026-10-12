@@ -1,0 +1,10 @@
+{{/* head is the shared <head> content of every page. The htmx-config
+     meta turns off eval and inline indicator styles, so htmx works under
+     the Content-Security-Policy. The argument is the page title. */}}
+{{define "head"}}
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{if .}}{{.}} · {{end}}Repo Speaks</title>
+	<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
+	<script src="/static/htmx.min.js"></script>
+{{end}}

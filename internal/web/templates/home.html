@@ -1,15 +1,40 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Repo Speaks</title>
-	<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-	<script src="/static/htmx.min.js"></script>
+{{template "head" ""}}
 </head>
 <body>
 	<h1>Repo Speaks</h1>
 	<p>Ask your codebase questions in plain language.</p>
+
+	{{with .User}}
+	<p>Logged in as {{.Username}}.</p>
+	<form method="post" action="/logout">
+		<button>Log out</button>
+	</form>
+
+	<h2>Projects</h2>
+	<ul>
+		{{range $.Projects}}
+		<li><a href="/projects/{{.ID}}">{{.Name}}</a></li>
+		{{else}}
+		<li>No projects yet.</li>
+		{{end}}
+	</ul>
+
+	{{if .IsOwner}}
+	<form method="post" action="/projects">
+		<label>New project <input name="name" required maxlength="100"></label>
+		<button>Create</button>
+	</form>
+	{{end}}
+	{{else}}
+	{{if .NeedsSetup}}
+	<p><a href="/setup">Set up this instance</a> by creating the owner account.</p>
+	{{else}}
+	<p><a href="/login">Log in</a></p>
+	{{end}}
+	{{end}}
 
 	<button hx-get="/status" hx-target="#status">Check status</button>
 	<div id="status"></div>

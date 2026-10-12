@@ -17,6 +17,8 @@ go run .          # start the server on http://localhost:8080
 go test ./...     # run all tests
 ```
 
+On first start, open http://localhost:8080/setup to create the owner account.
+
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `REPO_SPEAKS_ADDR` | `:8080` | Address the server listens on |

@@ -2,12 +2,16 @@
 package web
 
 import (
+	"bytes"
 	"embed"
+	"errors"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"time"
 
+	"github.com/urtuba/repo-speaks/internal/auth"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
 
@@ -17,17 +21,26 @@ import (
 var files embed.FS
 
 type server struct {
-	store  *store.Store
-	logger *slog.Logger
-	pages  *template.Template
+	store    *store.Store
+	logger   *slog.Logger
+	pages    *template.Template
+	throttle *auth.Throttle
+	now      func() time.Time
 }
 
 // New returns the HTTP handler for the whole UI.
 func New(st *store.Store, logger *slog.Logger) http.Handler {
+	return newHandler(st, logger, time.Now)
+}
+
+// newHandler is New with a clock, so tests can move time forward.
+func newHandler(st *store.Store, logger *slog.Logger, now func() time.Time) http.Handler {
 	s := &server{
-		store:  st,
-		logger: logger,
-		pages:  template.Must(template.ParseFS(files, "templates/*.html")),
+		store:    st,
+		logger:   logger,
+		pages:    template.Must(template.ParseFS(files, "templates/*.html")),
+		throttle: auth.NewThrottle(now),
+		now:      now,
 	}
 	static, err := fs.Sub(files, "static")
 	if err != nil {
@@ -39,18 +52,20 @@ func New(st *store.Store, logger *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("GET /status", s.status)
 	mux.HandleFunc("GET /healthz", s.healthz)
-	return middlewares(logger, mux)
-}
-
-// home renders the start page.
-func (s *server) home(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "home.html", nil)
+	mux.HandleFunc("GET /setup", s.setupPage)
+	mux.HandleFunc("POST /setup", s.setup)
+	mux.HandleFunc("GET /login", s.loginPage)
+	mux.HandleFunc("POST /login", s.login)
+	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("POST /projects", requireLogin(s.createProject))
+	mux.HandleFunc("GET /projects/{id}", requireLogin(s.project))
+	return middlewares(logger, s.loadSession(mux))
 }
 
 // status renders the status fragment that htmx swaps into the page.
 func (s *server) status(w http.ResponseWriter, r *http.Request) {
 	data := struct{ DatabaseOK bool }{DatabaseOK: s.store.Ping(r.Context()) == nil}
-	s.render(w, "status", data)
+	s.render(w, http.StatusOK, "status", data)
 }
 
 // healthz answers container health checks.
@@ -63,9 +78,37 @@ func (s *server) healthz(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("ok\n"))
 }
 
-func (s *server) render(w http.ResponseWriter, name string, data any) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.pages.ExecuteTemplate(w, name, data); err != nil {
+// render writes the named template with the status code. It renders into
+// a buffer first, so a template error gives a clean 500 and not half a page.
+func (s *server) render(w http.ResponseWriter, status int, name string, data any) {
+	var buf bytes.Buffer
+	if err := s.pages.ExecuteTemplate(&buf, name, data); err != nil {
 		s.logger.Error("render template", "name", name, "err", err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	w.Write(buf.Bytes())
+}
+
+// serverError logs err and answers 500 without details.
+func (s *server) serverError(w http.ResponseWriter, r *http.Request, err error) {
+	s.logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+}
+
+// parseForm reads the form body. On failure it answers and returns false:
+// 413 for a body over the limit, 400 for anything else.
+func parseForm(w http.ResponseWriter, r *http.Request) bool {
+	err := r.ParseForm()
+	if err == nil {
+		return true
+	}
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		return false
+	}
+	http.Error(w, "bad form", http.StatusBadRequest)
+	return false
 }
