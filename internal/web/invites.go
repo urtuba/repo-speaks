@@ -49,7 +49,7 @@ func (s *server) createInvite(w http.ResponseWriter, r *http.Request) {
 		Preset    permissions.Preset
 		Link      string
 		ExpiresAt time.Time
-	}{&sess.user, p, preset, linkBase(r) + invitePath(token), expires})
+	}{&sess.user, p, preset, linkBase(r) + invitePath(token), expires.UTC()})
 }
 
 // revokeInvite stops an open invite link from working.

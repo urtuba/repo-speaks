@@ -329,3 +329,14 @@ func TestLoginNext(t *testing.T) {
 		t.Error("login page does not keep next in the form")
 	}
 }
+
+func TestInviteExpiryShownInUTC(t *testing.T) {
+	app := newInviteApp(t)
+	// A clock in a zone other than UTC, like a server in Istanbul.
+	app.clock.t = app.clock.t.In(time.FixedZone("TRT", 3*60*60))
+	rec := app.post(app.invitesPath(), url.Values{"preset": {"asker"}}, app.login("mert"))
+	want := app.clock.now().Add(auth.InviteLifetime).UTC().Format("2 Jan 2006, 15:04 UTC")
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("page does not show the expiry as %q\n%s", want, rec.Body)
+	}
+}
