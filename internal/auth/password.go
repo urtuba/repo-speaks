@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -89,21 +88,17 @@ func CheckPassword(encoded, password string) (bool, error) {
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 
-// dummyHash is a hash of a random password, made on first use.
-var dummyHash = sync.OnceValue(func() string {
-	h, err := HashPassword(rand.Text())
-	if err != nil {
-		panic(err) // crypto/rand does not fail on supported systems
-	}
-	return h
-})
+// dummyHash is a hash of a random password nobody knows, made once with
+// defaultParams. It is a constant, so the first unknown username costs
+// the same as every other one. When defaultParams change, make a new one.
+const dummyHash = "$argon2id$v=19$m=19456,t=2,p=1$ORozfmzAjt1CBIVcg4fwqg$5ZKz0A1DHthbfCXiGXJ6dlx9xjVoDHeK3ejW/12bQK4"
 
 // CheckPasswordNoAccount does the same work as CheckPassword, against a
 // hash no password matches. Call it when the username does not exist, so
 // the answer takes as long as for a wrong password and timing does not
 // reveal which usernames exist.
 func CheckPasswordNoAccount(password string) {
-	CheckPassword(dummyHash(), password)
+	CheckPassword(dummyHash, password)
 }
 
 // decodeHash reads the settings, salt and key from a PHC string.

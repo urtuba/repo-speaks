@@ -98,3 +98,14 @@ func TestCheckPasswordBadHash(t *testing.T) {
 		}
 	}
 }
+
+func TestDummyHashUsesDefaultParams(t *testing.T) {
+	p, salt, key, err := decodeHash(dummyHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p != defaultParams || len(salt) != saltLength || len(key) != keyLength {
+		t.Errorf("dummyHash settings = %+v, salt %d, key %d; want %+v, salt %d, key %d: make a new dummyHash",
+			p, len(salt), len(key), defaultParams, saltLength, keyLength)
+	}
+}
