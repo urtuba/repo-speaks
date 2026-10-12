@@ -132,3 +132,45 @@ func (s *Store) Accounts(ctx context.Context, now time.Time) ([]Account, error) 
 	}
 	return list, rows.Err()
 }
+
+// AccountProject is one project an account is a member of.
+type AccountProject struct {
+	ProjectID   int64
+	Name        string
+	Permissions []string // sorted by name
+}
+
+// AccountProjects returns, for every account with memberships, its
+// projects by name with the permissions it holds there.
+func (s *Store) AccountProjects(ctx context.Context) (map[int64][]AccountProject, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT m.user_id, p.id, p.name, mp.permission
+		FROM memberships m
+		JOIN projects p ON p.id = m.project_id
+		LEFT JOIN member_permissions mp
+			ON mp.project_id = m.project_id AND mp.user_id = m.user_id
+		ORDER BY m.user_id, p.name, p.id, mp.permission`)
+	if err != nil {
+		return nil, fmt.Errorf("list account projects: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64][]AccountProject{}
+	for rows.Next() {
+		var userID, projectID int64
+		var name string
+		var perm sql.NullString // NULL for a member with no permissions
+		if err := rows.Scan(&userID, &projectID, &name, &perm); err != nil {
+			return nil, fmt.Errorf("list account projects: %w", err)
+		}
+		list := out[userID]
+		if len(list) == 0 || list[len(list)-1].ProjectID != projectID {
+			list = append(list, AccountProject{ProjectID: projectID, Name: name, Permissions: []string{}})
+		}
+		if perm.Valid {
+			last := &list[len(list)-1]
+			last.Permissions = append(last.Permissions, perm.String)
+		}
+		out[userID] = list
+	}
+	return out, rows.Err()
+}

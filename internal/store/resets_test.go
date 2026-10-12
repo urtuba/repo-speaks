@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -86,5 +87,37 @@ func TestExpiredResetLink(t *testing.T) {
 	}
 	if u, _ := s.UserByID(ctx, ayse.ID); u.PasswordHash != "hash" {
 		t.Errorf("an expired link changed the password")
+	}
+}
+
+func TestAccountProjects(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	ayse, _ := s.CreateUser(ctx, "ayse", "hash", testNow)
+	bora, _ := s.CreateUser(ctx, "bora", "hash", testNow)
+	clinic, _ := s.CreateProject(ctx, "Clinic app", testNow)
+	billing, _ := s.CreateProject(ctx, "Billing", testNow)
+	if err := s.AddMember(ctx, clinic.ID, ayse.ID, []string{"resources:view", "agents:edit"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember(ctx, billing.ID, ayse.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.AccountProjects(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[int64][]AccountProject{
+		ayse.ID: {
+			{ProjectID: billing.ID, Name: "Billing", Permissions: []string{}},
+			{ProjectID: clinic.ID, Name: "Clinic app", Permissions: []string{"agents:edit", "resources:view"}},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("AccountProjects() = %+v, want %+v", got, want)
+	}
+	if _, ok := got[bora.ID]; ok {
+		t.Error("an account with no projects should not be in the map")
 	}
 }

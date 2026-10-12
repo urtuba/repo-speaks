@@ -14,14 +14,22 @@
 		<p class="muted">Every account on this instance. When someone forgets their password, make a reset link and send it to them yourself. A link works once and stops after 24 hours.</p>
 		<table class="table">
 			<thead>
-				<tr><th>Username</th><th>Created</th><th>Reset link</th><th></th></tr>
+				<tr><th>Username</th><th>Projects</th><th>Created</th><th></th></tr>
 			</thead>
 			<tbody>
 				{{range .Accounts}}
 				<tr>
 					<td>{{.Username}}{{if .IsOwner}} <span class="badge owner">owner</span>{{end}}</td>
+					<td>
+						{{if .IsOwner}}
+						<span class="muted small">Every project</span>
+						{{else}}
+						<ul class="project-roles">
+							{{range .Projects}}<li><a href="/projects/{{.ID}}">{{.Name}}</a> <span class="muted small">{{.Role}}</span></li>{{else}}<li class="muted small">No projects</li>{{end}}
+						</ul>
+						{{end}}
+					</td>
 					<td class="muted">{{.CreatedAt.Format "2 Jan 2006"}}</td>
-					<td class="muted">{{if .ResetOpenUntil.IsZero}}None{{else}}Open until {{.ResetOpenUntil.Format "2 Jan, 15:04 UTC"}}{{end}}</td>
 					<td class="actions">
 						{{if not .IsOwner}}
 						<form class="inline" method="post" action="/accounts/{{.ID}}/reset">

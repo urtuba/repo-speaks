@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/permissions"
 )
 
 // resetPathRE finds a reset path in a page.
@@ -48,15 +50,32 @@ func canLogin(app *testApp, username, password string) bool {
 func TestAccountsPage(t *testing.T) {
 	app := newTestApp(t)
 	app.createUser("samed", true)
-	app.createUser("ayse", false)
+	ayse := app.createUser("ayse", false)
+	app.createUser("bora", false)
+	p, err := app.store.CreateProject(context.Background(), "Clinic app", app.clock.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.store.AddMember(context.Background(), p.ID, ayse.ID, permissions.PresetBuilder.Permissions().Strings()); err != nil {
+		t.Fatal(err)
+	}
 
 	rec := app.get("/accounts", app.login("samed"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("owner: status = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "<td>ayse</td>") || strings.Count(body, "Reset link</button>") != 1 {
-		t.Errorf("page should list ayse with one reset button (none for the owner)\n%s", body)
+	for _, want := range []string{
+		`<a href="/projects/1">Clinic app</a> <span class="muted small">builder</span>`,
+		"No projects",   // bora
+		"Every project", // the owner
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page does not contain %q", want)
+		}
+	}
+	if n := strings.Count(body, "Reset link</button>"); n != 2 {
+		t.Errorf("reset buttons = %d, want 2 (none for the owner)", n)
 	}
 	if rec := app.get("/accounts", app.login("ayse")); rec.Code != http.StatusForbidden {
 		t.Errorf("non-owner: status = %d, want 403", rec.Code)

@@ -294,6 +294,16 @@ code {
 	text-align: right;
 }
 
+.project-roles {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.project-roles li + li {
+	margin-top: 4px;
+}
+
 .empty {
 	padding: 24px 0 8px;
 	color: var(--muted);

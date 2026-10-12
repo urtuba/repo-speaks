@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/permissions"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
 
@@ -22,10 +23,40 @@ func (s *server) accounts(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	memberships, err := s.store.AccountProjects(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	rows := make([]accountRow, len(list))
+	for i, a := range list {
+		rows[i] = accountRow{Account: a}
+		for _, m := range memberships[a.ID] {
+			set, err := permissions.ParseSet(m.Permissions)
+			if err != nil {
+				s.serverError(w, r, err)
+				return
+			}
+			rows[i].Projects = append(rows[i].Projects, projectRole{ID: m.ProjectID, Name: m.Name, Role: roleName(set)})
+		}
+	}
 	s.render(w, http.StatusOK, "accounts.html", struct {
 		User     *store.User
-		Accounts []store.Account
-	}{&user, list})
+		Accounts []accountRow
+	}{&user, rows})
+}
+
+// accountRow is an account on the Accounts page, with its projects.
+type accountRow struct {
+	store.Account
+	Projects []projectRole
+}
+
+// projectRole is one project of an account, with the account's role in it.
+type projectRole struct {
+	ID   int64
+	Name string
+	Role string
 }
 
 // createReset makes a password reset link for an account and shows it
