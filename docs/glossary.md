@@ -1,6 +1,6 @@
 # Glossary
 
-One meaning per word. Code, UI, docs and ADRs use these terms.
+One meaning per word. Code, UI and docs use these terms.
 
 | Term | Meaning |
 | --- | --- |
