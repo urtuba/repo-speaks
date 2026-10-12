@@ -86,6 +86,81 @@ sequenceDiagram
 
 The loop shows agentic search. If indexing uses embeddings instead, the App searches the index first and sends the closest pieces in one call; the rest of the flow stays the same.
 
+## Sync flow: a repository is brought up to date
+
+A sync starts in three ways: a builder adds a repository, a builder presses "Sync now", or the project's timer fires (every 6 hours by default; off, 1, 6 or 24 hours). All three add the same job row.
+
+```mermaid
+sequenceDiagram
+    actor Builder
+    participant Web as App: web handlers
+    participant Worker as App: sync worker
+    participant DB as Database
+    participant GH as GitHub
+    participant Files as File storage
+
+    Builder->>Web: Add a repository, or press "Sync now"
+    Web->>DB: Check resources:edit, save the resource, queue a sync job
+    Web-->>Builder: "Sync queued"
+    Note over Worker,DB: The timer queues the same job when the last sync is older than the interval
+    Worker->>DB: Claim the oldest queued job (UPDATE ... RETURNING)
+    Worker->>GH: Ask for the repository size (access method: open)
+    alt Over the size limit
+        Worker->>DB: Mark the job failed, save the reason
+    else Size is fine
+        Worker->>GH: Fetch only the latest commit
+        GH-->>Worker: Files
+        Worker->>Files: Write into a new folder, skip files over the file limit
+        Worker->>Files: Rename the new folder over the old one
+        Note over Worker,Files: Indexing (open) runs here
+        Worker->>DB: Save the sync time, mark the job done
+    end
+    opt Network or GitHub error
+        Worker->>DB: Queue a retry with a longer wait. After 3 tries, mark it failed with the error
+    end
+```
+
+- **One open job per resource.** Pressing "Sync now" twice does not start two syncs.
+- **The rename** means an agent reads either the old clone or the new one, never half of each.
+- **The web handler only queues.** A slow clone never blocks a page.
+
+## Invite flow: a new person joins a project
+
+```mermaid
+sequenceDiagram
+    actor Manager
+    actor Invitee
+    participant App
+    participant DB as Database
+
+    Manager->>App: Create an invite: project and preset
+    App->>DB: Check members:edit and that the manager holds the whole preset
+    App->>DB: Save the token's hash, the preset and the expiry (7 days)
+    App-->>Manager: The link, shown once
+    Manager-->>Invitee: Sends the link (chat, message, in person)
+    Invitee->>App: Opens the link
+    App->>DB: Find the invite by hash: unused, not expired, not revoked?
+    App->>DB: Does the inviter still hold the whole preset?
+    alt Any check fails
+        App-->>Invitee: "This link no longer works. Ask for a new one."
+    else The link is valid
+        alt New person
+            App-->>Invitee: Form: pick a username and a password
+            Invitee->>App: Username and password
+        else Has an account already
+            App-->>Invitee: Log in first
+            Invitee->>App: Logs in and confirms
+        end
+        App->>DB: One transaction: create the account if new, add the membership, mark the invite used
+        App-->>Invitee: Logged in, the project opens
+    end
+```
+
+- **Only the hash is stored.** A copy of the database holds no working links.
+- **Checked again on use.** A manager who lost their rights, or left, has no working links.
+- **"Mark used" only succeeds once** (`UPDATE ... WHERE used_at IS NULL`). Two people opening the same link at once cannot both join.
+- An invitee who is already a member sees "You are already a member", and the link stays unused.
+
 ## Entity relationships
 
 Planned tables for phase 1. Indexing tables come with the indexing decision.
@@ -130,6 +205,7 @@ erDiagram
         text name
         int attachment_max_bytes "default 262144, max 1048576"
         int chat_retention_days "null = forever; 30, 90, 365"
+        int sync_interval_hours "null = off; 1, 6 (default), 24"
         time created_at
     }
     memberships {
@@ -221,7 +297,7 @@ erDiagram
     jobs {
         int id PK
         text kind "sync_resource"
-        int resource_id FK "cascade"
+        int resource_id FK "cascade; null for project jobs"
         text status "queued, running, done, failed"
         int attempts
         time run_after
