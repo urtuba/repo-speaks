@@ -81,10 +81,10 @@ func TestProjectPage(t *testing.T) {
 		notWant    []string
 	}{
 		{"owner without membership", "samed", path, http.StatusOK,
-			[]string{"Clinic app", "instance owner", "project:edit", "bora: resources:view"}, nil},
+			[]string{"Clinic app", "instance owner", "project:edit", "<td>bora</td>", "<td>asli</td>", "Invite links"}, nil},
 		{"builder sees members", "bora", path, http.StatusOK,
-			[]string{"Clinic app", "agents:edit", "members:view", "bora", "asli: resources:view"},
-			[]string{"members:edit", "cannot see the members"}},
+			[]string{"Clinic app", "agents:edit", "members:view", "<td>bora</td>", "<td>asli</td>"},
+			[]string{"members:edit", "cannot see the members", "Invite links"}},
 		{"asker does not see members", "asli", path, http.StatusOK,
 			[]string{"Clinic app", "resources:view", "You cannot see the members"},
 			[]string{"bora", "agents:edit"}},
@@ -167,7 +167,6 @@ func TestPagesIncludeHTMXConfig(t *testing.T) {
 		name string
 		path string
 	}{
-		{"home, fresh instance", "/"},
 		{"setup", "/setup"},
 	}
 	for _, p := range pages {

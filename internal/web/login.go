@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ const msgWrongLogin = "Wrong username or password."
 type formPage struct {
 	Username string
 	Error    string
+	Next     string // where to go after login; always a local path
 }
 
 // setupPage shows the form that creates the owner account. Once any
@@ -53,22 +55,12 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !parseForm(w, r) {
+	username, password, msg, ok := newAccountForm(w, r)
+	if !ok {
 		return
 	}
-	username := r.PostFormValue("username")
-	password := r.PostFormValue("password")
-	page := formPage{Username: username}
-
-	if err := auth.ValidateUsername(username); err != nil {
-		page.Error = sentence(err)
-	} else if err := auth.ValidatePassword(password); err != nil {
-		page.Error = sentence(err)
-	} else if password != r.PostFormValue("password_again") {
-		page.Error = "The two passwords are not the same."
-	}
-	if page.Error != "" {
-		s.render(w, http.StatusBadRequest, "setup.html", page)
+	if msg != "" {
+		s.render(w, http.StatusBadRequest, "setup.html", formPage{Username: username, Error: msg})
 		return
 	}
 
@@ -97,8 +89,9 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 // loginPage shows the login form. A fresh instance sends the visitor to
 // setup instead, and a logged-in visitor goes home.
 func (s *server) loginPage(w http.ResponseWriter, r *http.Request) {
+	next := safeNext(r.URL.Query().Get("next"))
 	if currentSession(r) != nil {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, next, http.StatusSeeOther)
 		return
 	}
 	has, err := s.store.HasUsers(r.Context())
@@ -110,7 +103,7 @@ func (s *server) loginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
-	s.render(w, http.StatusOK, "login.html", formPage{})
+	s.render(w, http.StatusOK, "login.html", formPage{Next: localNext(next)})
 }
 
 // login checks a username and password and starts a session.
@@ -120,7 +113,8 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
-	page := formPage{Username: username, Error: msgWrongLogin}
+	next := safeNext(r.PostFormValue("next"))
+	page := formPage{Username: username, Error: msgWrongLogin, Next: localNext(next)}
 
 	// A name that breaks the username rules cannot exist. It skips the
 	// throttle, so made-up names do not fill its memory, but it still
@@ -163,7 +157,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // logout ends the current session and drops the cookie.
@@ -176,6 +170,50 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 	}
 	clearSessionCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
+// newAccountForm reads and checks the fields for a new account: a
+// username and the password twice. msg explains the first problem, or is
+// empty. ok is false when the form could not be read; the answer is
+// already sent then.
+func newAccountForm(w http.ResponseWriter, r *http.Request) (username, password, msg string, ok bool) {
+	if !parseForm(w, r) {
+		return "", "", "", false
+	}
+	username = r.PostFormValue("username")
+	password = r.PostFormValue("password")
+	switch {
+	case auth.ValidateUsername(username) != nil:
+		msg = sentence(auth.ValidateUsername(username))
+	case auth.ValidatePassword(password) != nil:
+		msg = sentence(auth.ValidatePassword(password))
+	case password != r.PostFormValue("password_again"):
+		msg = "The two passwords are not the same."
+	}
+	return username, password, msg, true
+}
+
+// safeNext returns next when it is a path on this site, and "/"
+// otherwise. Without the check, a link like /login?next=https://evil.example
+// would send people to another site after they log in.
+func safeNext(next string) string {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") {
+		return "/"
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Scheme != "" || u.Host != "" {
+		return "/"
+	}
+	return next
+}
+
+// localNext returns next for the login form, or "" when it is the home
+// page, so the form has no hidden field it does not need.
+func localNext(next string) string {
+	if next == "/" {
+		return ""
+	}
+	return next
 }
 
 // waitMessage tells a visitor how long to wait before the next try.

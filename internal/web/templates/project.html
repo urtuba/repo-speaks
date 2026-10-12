@@ -4,30 +4,105 @@
 {{template "head" .Project.Name}}
 </head>
 <body>
-	<p><a href="/">Home</a></p>
-	<h1>{{.Project.Name}}</h1>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> /</p>
+			<h1>{{.Project.Name}}</h1>
+		</div>
+	</div>
 
-	<h2>Your permissions</h2>
-	{{if .IsOwner}}<p>You are the instance owner, so you have every permission.</p>{{end}}
-	<ul>
-		{{range .Permissions}}
-		<li>{{.}}</li>
+	<section class="card">
+		<div class="card-head">
+			<h2>Your permissions</h2>
+		</div>
+		{{if .User.IsOwner}}<p class="muted">You are the instance owner, so you have every permission.</p>{{end}}
+		{{if .Permissions}}
+		<div class="badges">
+			{{range .Permissions}}<span class="badge">{{.}}</span>{{end}}
+		</div>
 		{{else}}
-		<li>None. As a member, you can chat with this project's agents.</li>
+		<p class="muted">No extra permissions. As a member, you can ask this project's agents.</p>
 		{{end}}
-	</ul>
+	</section>
 
-	<h2>Members</h2>
-	{{if .CanSeeMembers}}
-	<ul>
-		{{range .Members}}
-		<li>{{.Username}}{{with .Permissions}}: {{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}{{end}}</li>
+	<section class="card">
+		<div class="card-head">
+			<h2>Members</h2>
+		</div>
+		{{if .CanSeeMembers}}
+		{{if .Members}}
+		<table class="table">
+			<thead>
+				<tr><th>Username</th><th>Permissions</th></tr>
+			</thead>
+			<tbody>
+				{{range .Members}}
+				<tr>
+					<td>{{.Username}}</td>
+					<td>
+						<div class="badges">
+							{{range .Permissions}}<span class="badge">{{.}}</span>{{else}}<span class="muted small">Asks only</span>{{end}}
+						</div>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
 		{{else}}
-		<li>No members yet.</li>
+		<p class="empty">No members yet.</p>
 		{{end}}
-	</ul>
-	{{else}}
-	<p>You cannot see the members of this project.</p>
+		{{else}}
+		<p class="muted">You cannot see the members of this project.</p>
+		{{end}}
+	</section>
+
+	{{if .CanInvite}}
+	<section class="card" id="invites">
+		<div class="card-head">
+			<h2>Invite links</h2>
+		</div>
+		<p class="muted">A link adds one person with the role you pick. It works once and stops after 7 days. Send it yourself, for example in a chat.</p>
+
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/invites">
+			<div class="field">
+				<label for="preset">Role</label>
+				<select id="preset" name="preset">
+					{{range .Presets}}<option value="{{.}}">{{.}}: {{template "presetHint" .}}</option>{{end}}
+				</select>
+			</div>
+			<button class="button">Create link</button>
+		</form>
+
+		{{if .Invites}}
+		<table class="table">
+			<thead>
+				<tr><th>Role</th><th>Created by</th><th>Expires</th><th></th></tr>
+			</thead>
+			<tbody>
+				{{range .Invites}}
+				<tr>
+					<td><span class="badge">{{.Preset}}</span></td>
+					<td>{{with .CreatedByName}}{{.}}{{else}}<span class="muted">deleted account</span>{{end}}</td>
+					<td class="muted">{{.ExpiresAt.Format "2 Jan 2006, 15:04 UTC"}}</td>
+					<td class="actions">
+						<form class="inline" method="post" action="/projects/{{$.Project.ID}}/invites/{{.ID}}/revoke">
+							<button class="button danger small">Revoke</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+		{{else}}
+		<p class="empty">No open links.</p>
+		{{end}}
+	</section>
 	{{end}}
+</main>
+{{template "footer"}}
 </body>
 </html>

@@ -26,7 +26,10 @@ func TestRoutes(t *testing.T) {
 		wantStatus int
 		wantBody   string
 	}{
-		{"/", http.StatusOK, `<script src="/static/htmx.min.js">`},
+		{"/", http.StatusSeeOther, ""}, // not logged in
+		{"/setup", http.StatusOK, `<link rel="stylesheet" href="/static/app.css">`},
+		{"/static/app.css", http.StatusOK, "--bg"},
+		{"/static/app.js", http.StatusOK, "data-copy"},
 		{"/status", http.StatusOK, "Database: ok"},
 		{"/healthz", http.StatusOK, "ok"},
 		{"/static/htmx.min.js", http.StatusOK, "htmx"},

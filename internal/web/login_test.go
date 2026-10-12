@@ -46,8 +46,13 @@ func TestSetupOnlyOnce(t *testing.T) {
 	if rec := app.get("/setup", nil); rec.Code != http.StatusOK {
 		t.Fatalf("GET /setup on a fresh instance: status = %d, want 200", rec.Code)
 	}
-	if rec := app.get("/", nil); !strings.Contains(rec.Body.String(), `href="/setup"`) {
-		t.Error("home page of a fresh instance does not link to /setup")
+	// A fresh instance sends visitors from the home page to login, and
+	// from login to setup.
+	if rec := app.get("/", nil); rec.Header().Get("Location") != "/login" {
+		t.Errorf("home page of a fresh instance: location = %q, want /login", rec.Header().Get("Location"))
+	}
+	if rec := app.get("/login", nil); rec.Header().Get("Location") != "/setup" {
+		t.Errorf("login page of a fresh instance: location = %q, want /setup", rec.Header().Get("Location"))
 	}
 
 	form := url.Values{"username": {"samed"}, "password": {testPassword}, "password_again": {testPassword}}
@@ -59,7 +64,7 @@ func TestSetupOnlyOnce(t *testing.T) {
 	if c == nil {
 		t.Fatal("POST /setup did not log the owner in")
 	}
-	if body := app.get("/", c).Body.String(); !strings.Contains(body, "Logged in as samed.") {
+	if body := app.get("/", c).Body.String(); !strings.Contains(body, "samed (owner)") {
 		t.Errorf("home page after setup:\n%s", body)
 	}
 	owner, err := app.store.UserByUsername(context.Background(), "samed")
@@ -103,7 +108,7 @@ func TestLoginSetsSessionCookie(t *testing.T) {
 	if _, _, err := app.store.SessionUser(ctx, c.Value, app.clock.now()); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("session found by the raw token: %v", err)
 	}
-	if _, _, err := app.store.SessionUser(ctx, auth.HashSessionToken(c.Value), app.clock.now()); err != nil {
+	if _, _, err := app.store.SessionUser(ctx, auth.HashToken(c.Value), app.clock.now()); err != nil {
 		t.Errorf("session not found by the token's hash: %v", err)
 	}
 
@@ -203,7 +208,7 @@ func TestLogout(t *testing.T) {
 	if rec := app.get("/projects/1", c); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/login" {
 		t.Errorf("GET /projects/1 after logout: status = %d, want 303 to /login", rec.Code)
 	}
-	if _, _, err := app.store.SessionUser(context.Background(), auth.HashSessionToken(c.Value), app.clock.now()); !errors.Is(err, store.ErrNotFound) {
+	if _, _, err := app.store.SessionUser(context.Background(), auth.HashToken(c.Value), app.clock.now()); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("session row after logout: %v, want ErrNotFound", err)
 	}
 }
@@ -214,7 +219,7 @@ func TestSessionExpiry(t *testing.T) {
 	c := app.login("samed")
 
 	loggedIn := func() bool {
-		return strings.Contains(app.get("/", c).Body.String(), "Logged in as samed.")
+		return app.get("/", c).Code == http.StatusOK // logged out: 303 to /login
 	}
 
 	// Each request moves the end forward, so regular use keeps the

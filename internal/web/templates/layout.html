@@ -1,10 +1,52 @@
-{{/* head is the shared <head> content of every page. The htmx-config
-     meta turns off eval and inline indicator styles, so htmx works under
-     the Content-Security-Policy. The argument is the page title. */}}
+{{/* Shared parts of every page. */}}
+
+{{/* head is the shared <head> content. The htmx-config meta turns off
+     eval and inline indicator styles, so htmx works under the
+     Content-Security-Policy. The argument is the page title. */}}
 {{define "head"}}
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>{{if .}}{{.}} · {{end}}Repo Speaks</title>
 	<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-	<script src="/static/htmx.min.js"></script>
+	<link rel="stylesheet" href="/static/app.css">
+	<script src="/static/htmx.min.js" defer></script>
+	<script src="/static/app.js" defer></script>
 {{end}}
+
+{{/* topbar is the bar at the top of every page for a logged-in account.
+     The argument is the *store.User. */}}
+{{define "topbar"}}
+<header class="topbar">
+	<div class="topbar-inner">
+		<a class="brand" href="/">Repo Speaks</a>
+		<nav class="nav">
+			<a href="/">Projects</a>
+		</nav>
+		<div class="account">
+			<span>{{.Username}}{{if .IsOwner}} (owner){{end}}</span>
+			<form class="inline" method="post" action="/logout">
+				<button class="button secondary small">Log out</button>
+			</form>
+		</div>
+	</div>
+</header>
+{{end}}
+
+{{/* footer shows a status check, swapped in by htmx. */}}
+{{define "footer"}}
+<footer class="footer">
+	<button hx-get="/status" hx-target="#status">Check status</button>
+	<span id="status"></span>
+</footer>
+{{end}}
+
+{{define "status"}}{{if .DatabaseOK}}<p>Database: ok</p>{{else}}<p>Database: not reachable</p>{{end}}{{end}}
+
+{{/* presetHint explains a preset in one line. The argument is a preset. */}}
+{{define "presetHint"}}
+	{{- if eq (print .) "asker"}}Asks questions and reads the code.
+	{{- else if eq (print .) "builder"}}Also adds resources, builds agents and sees members.
+	{{- else if eq (print .) "manager"}}Also invites members and reads every chat.
+	{{- else if eq (print .) "admin"}}Also changes the project's settings.
+	{{- end}}
+{{- end}}

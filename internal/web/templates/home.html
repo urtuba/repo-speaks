@@ -1,46 +1,44 @@
 <!doctype html>
 <html lang="en">
 <head>
-{{template "head" ""}}
+{{template "head" "Projects"}}
 </head>
 <body>
-	<h1>Repo Speaks</h1>
-	<p>Ask your codebase questions in plain language.</p>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<h1>Projects</h1>
+	</div>
 
-	{{with .User}}
-	<p>Logged in as {{.Username}}.</p>
-	<form method="post" action="/logout">
-		<button>Log out</button>
-	</form>
+	{{if .User.IsOwner}}
+	<section class="card">
+		<form class="inline-form" method="post" action="/projects">
+			<div class="field">
+				<label for="project-name">New project</label>
+				<input id="project-name" name="name" required maxlength="100" placeholder="Clinic app">
+			</div>
+			<button class="button">Create project</button>
+		</form>
+	</section>
+	{{end}}
 
-	<h2>Projects</h2>
-	<ul>
-		{{range $.Projects}}
-		<li><a href="/projects/{{.ID}}">{{.Name}}</a></li>
-		{{else}}
-		<li>No projects yet.</li>
+	{{if .Projects}}
+	<ul class="project-list">
+		{{range .Projects}}
+		<li>
+			<a class="card" href="/projects/{{.ID}}">
+				<h2>{{.Name}}</h2>
+				<p class="muted small">Created {{.CreatedAt.Format "2 Jan 2006"}}</p>
+			</a>
+		</li>
 		{{end}}
 	</ul>
-
-	{{if .IsOwner}}
-	<form method="post" action="/projects">
-		<label>New project <input name="name" required maxlength="100"></label>
-		<button>Create</button>
-	</form>
-	{{end}}
 	{{else}}
-	{{if .NeedsSetup}}
-	<p><a href="/setup">Set up this instance</a> by creating the owner account.</p>
-	{{else}}
-	<p><a href="/login">Log in</a></p>
+	<div class="card empty">
+		{{if .User.IsOwner}}No projects yet. Create the first one above.{{else}}You are not in any project yet. Ask a manager for an invite link.{{end}}
+	</div>
 	{{end}}
-	{{end}}
-
-	<button hx-get="/status" hx-target="#status">Check status</button>
-	<div id="status"></div>
+</main>
+{{template "footer"}}
 </body>
 </html>
-
-{{define "status"}}
-	{{if .DatabaseOK}}<p>Database: ok</p>{{else}}<p>Database: not reachable</p>{{end}}
-{{end}}

@@ -4,18 +4,38 @@
 {{template "head" "Set up"}}
 </head>
 <body>
-	<h1>Set up Repo Speaks</h1>
-	<p>Create the owner account. The owner has every permission in every project.</p>
+<main class="auth">
+	<span class="brand">Repo Speaks</span>
+	<div class="card">
+		<h1>Set up Repo Speaks</h1>
+		<p class="muted">Create the owner account. The owner has every permission in every project.</p>
 
-	{{with .Error}}<p role="alert">{{.}}</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
 
-	<form method="post" action="/setup">
-		<p><label>Username <input name="username" value="{{.Username}}" required autocomplete="username"></label></p>
-		<p>3 to 32 characters: lowercase letters, digits, - or _.</p>
-		<p><label>Password <input name="password" type="password" required minlength="12" autocomplete="new-password"></label></p>
-		<p><label>Password again <input name="password_again" type="password" required minlength="12" autocomplete="new-password"></label></p>
-		<p>At least 12 characters. A few random words work well.</p>
-		<button>Create owner account</button>
-	</form>
+		<form method="post" action="/setup">
+			{{template "accountFields" .}}
+			<button class="button full">Create owner account</button>
+		</form>
+	</div>
+</main>
 </body>
 </html>
+
+{{/* accountFields are the fields for a new account: username and the
+     password twice. The argument has a Username field. */}}
+{{define "accountFields"}}
+			<div class="field">
+				<label for="username">Username</label>
+				<input id="username" name="username" value="{{.Username}}" required autocomplete="username" autofocus>
+				<p class="hint">3 to 32 characters: lowercase letters, digits, - or _.</p>
+			</div>
+			<div class="field">
+				<label for="password">Password</label>
+				<input id="password" name="password" type="password" required minlength="12" autocomplete="new-password">
+				<p class="hint">At least 12 characters. A few random words work well.</p>
+			</div>
+			<div class="field">
+				<label for="password-again">Password again</label>
+				<input id="password-again" name="password_again" type="password" required minlength="12" autocomplete="new-password">
+			</div>
+{{end}}

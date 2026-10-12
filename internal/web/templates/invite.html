@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Invite"}}
+</head>
+<body>
+<main class="auth">
+	<a class="brand" href="/">Repo Speaks</a>
+	<div class="card">
+		{{if eq .State "dead"}}
+		<h1>This link no longer works</h1>
+		<p class="muted">It was used, revoked or has expired. Ask the person who sent it for a new one.</p>
+
+		{{else if eq .State "member"}}
+		<h1>You are already in {{.Invite.ProjectName}}</h1>
+		<p class="muted">This link was not used, so someone else can still use it.</p>
+		<a class="button full" href="/projects/{{.Invite.ProjectID}}">Open the project</a>
+
+		{{else if eq .State "owner"}}
+		<h1>You already have access</h1>
+		<p class="muted">You are the instance owner, so you can open every project. This link was not used.</p>
+		<a class="button full" href="/projects/{{.Invite.ProjectID}}">Open {{.Invite.ProjectName}}</a>
+
+		{{else if eq .State "confirm"}}
+		<h1>Join {{.Invite.ProjectName}}</h1>
+		<p class="muted">You are invited as <span class="badge">{{.Invite.Preset}}</span>. {{template "presetHint" .Invite.Preset}}</p>
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form method="post" action="{{.Path}}">
+			<button class="button full">Join as {{.User.Username}}</button>
+		</form>
+		<p class="muted small">Not {{.User.Username}}? Log out first, then open the link again.</p>
+
+		{{else}}
+		<h1>Join {{.Invite.ProjectName}}</h1>
+		<p class="muted">You are invited as <span class="badge">{{.Invite.Preset}}</span>. {{template "presetHint" .Invite.Preset}} Create your account to join.</p>
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form method="post" action="{{.Path}}">
+			{{template "accountFields" .}}
+			<button class="button full">Create account and join</button>
+		</form>
+		<p class="muted small">Already have an account? <a href="/login?next={{.Path}}">Log in first</a>.</p>
+		{{end}}
+	</div>
+</main>
+</body>
+</html>

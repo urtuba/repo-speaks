@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Invite link"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a> /</p>
+			<h1>Invite link</h1>
+		</div>
+	</div>
+
+	<section class="card">
+		<p class="alert success">The link is ready. Copy it now: it is shown only once.</p>
+		<div class="inline-form">
+			<div class="field">
+				<label for="link">Link for a new <strong>{{.Preset}}</strong></label>
+				<input id="link" value="{{.Link}}" readonly>
+			</div>
+			<button class="button" type="button" data-copy="link">Copy</button>
+		</div>
+		<p class="muted small">It works once and stops on {{.ExpiresAt.Format "2 Jan 2006, 15:04 UTC"}}. You can revoke it on the project page.</p>
+		<p><a class="button secondary" href="/projects/{{.Project.ID}}#invites">Back to the project</a></p>
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

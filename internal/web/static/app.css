@@ -1,0 +1,519 @@
+/* Repo Speaks: the whole look of the app.
+   Plain and calm: white surfaces, thin gray borders, one dark button
+   color. Colors and sizes are variables, so dark mode only swaps them.
+   Pages use the shared classes below instead of one-off styles. */
+
+:root {
+	--bg: #fafafa;
+	--surface: #ffffff;
+	--border: #e6e6e6;
+	--border-strong: #d0d0d0;
+	--text: #171717;
+	--muted: #6b6b6b;
+	--primary: #171717;
+	--primary-text: #ffffff;
+	--primary-hover: #3a3a3a;
+	--hover: #f2f2f2;
+	--danger: #c62828;
+	--danger-bg: #fdecec;
+	--success-bg: #eaf6ec;
+	--success: #1e7b34;
+	--focus: #2f6feb;
+
+	--radius: 8px;
+	--radius-small: 6px;
+	--page-width: 960px;
+	--font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #0f0f0f;
+		--surface: #181818;
+		--border: #2a2a2a;
+		--border-strong: #3a3a3a;
+		--text: #ededed;
+		--muted: #9a9a9a;
+		--primary: #ededed;
+		--primary-text: #111111;
+		--primary-hover: #cfcfcf;
+		--hover: #222222;
+		--danger: #f07272;
+		--danger-bg: #2c1515;
+		--success-bg: #13261a;
+		--success: #6fd38a;
+		--focus: #6d9cff;
+		color-scheme: dark;
+	}
+}
+
+/* Base */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--font);
+	font-size: 15px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	line-height: 1.25;
+	font-weight: 600;
+}
+
+h1 {
+	font-size: 24px;
+}
+
+h2 {
+	font-size: 16px;
+}
+
+p {
+	margin: 0 0 12px;
+}
+
+a {
+	color: inherit;
+	text-underline-offset: 3px;
+}
+
+a:hover {
+	color: var(--muted);
+}
+
+code {
+	font-family: var(--mono);
+	font-size: 13px;
+}
+
+:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+/* Top bar */
+
+.topbar {
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+}
+
+.topbar-inner {
+	display: flex;
+	align-items: center;
+	gap: 24px;
+	max-width: var(--page-width);
+	height: 56px;
+	margin: 0 auto;
+	padding: 0 16px;
+}
+
+.brand {
+	font-weight: 700;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.nav {
+	display: flex;
+	gap: 4px;
+	flex: 1;
+}
+
+.nav a {
+	padding: 6px 10px;
+	border-radius: var(--radius-small);
+	color: var(--muted);
+	text-decoration: none;
+}
+
+.nav a:hover,
+.nav a[aria-current="page"] {
+	background: var(--hover);
+	color: var(--text);
+}
+
+.account {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+/* Page */
+
+.page {
+	max-width: var(--page-width);
+	margin: 0 auto;
+	padding: 32px 16px 64px;
+}
+
+.page-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.breadcrumb {
+	margin-bottom: 4px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.breadcrumb a {
+	text-decoration: none;
+}
+
+.stack > * + * {
+	margin-top: 24px;
+}
+
+.muted {
+	color: var(--muted);
+}
+
+.small {
+	font-size: 13px;
+}
+
+/* Cards */
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 20px;
+}
+
+.card-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.card > :last-child {
+	margin-bottom: 0;
+}
+
+/* A narrow centered card for login, setup and invite pages. */
+.auth {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-height: 100vh;
+	padding: 64px 16px;
+}
+
+.auth .brand {
+	margin-bottom: 24px;
+	font-size: 20px;
+}
+
+.auth .card {
+	width: 100%;
+	max-width: 400px;
+	padding: 28px;
+}
+
+.auth h1 {
+	margin-bottom: 8px;
+	font-size: 20px;
+}
+
+.auth form + p {
+	margin-top: 16px;
+}
+
+/* Lists of things: projects, members, invites */
+
+.table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.table th {
+	padding: 0 12px 8px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 500;
+	text-align: left;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.table td {
+	padding: 12px;
+	border-top: 1px solid var(--border);
+	vertical-align: middle;
+}
+
+.table th:first-child,
+.table td:first-child {
+	padding-left: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+	padding-right: 0;
+}
+
+.table .actions {
+	text-align: right;
+}
+
+.empty {
+	padding: 24px 0 8px;
+	color: var(--muted);
+	text-align: center;
+}
+
+.project-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+	gap: 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.project-list a {
+	display: block;
+	height: 100%;
+	text-decoration: none;
+	transition: border-color 0.15s;
+}
+
+.project-list a:hover {
+	border-color: var(--border-strong);
+	color: inherit;
+}
+
+.project-list h2 {
+	margin-bottom: 4px;
+}
+
+/* Forms */
+
+.field {
+	margin-bottom: 16px;
+}
+
+.field label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 500;
+}
+
+.field .hint {
+	margin: 6px 0 0;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+input,
+select {
+	width: 100%;
+	height: 38px;
+	padding: 0 12px;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-small);
+	color: var(--text);
+	font: inherit;
+}
+
+input:focus,
+select:focus {
+	border-color: var(--focus);
+	outline: none;
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 20%, transparent);
+}
+
+input[readonly] {
+	background: var(--bg);
+	font-family: var(--mono);
+	font-size: 13px;
+}
+
+/* A row of inputs and a button, such as "name + Create". */
+.inline-form {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+}
+
+.inline-form .field {
+	flex: 1;
+	margin-bottom: 0;
+}
+
+/* Buttons */
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 38px;
+	padding: 0 16px;
+	background: var(--primary);
+	border: 1px solid var(--primary);
+	border-radius: var(--radius-small);
+	color: var(--primary-text);
+	font: inherit;
+	font-weight: 500;
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.button:hover {
+	background: var(--primary-hover);
+	border-color: var(--primary-hover);
+	color: var(--primary-text);
+}
+
+.button.secondary {
+	background: var(--surface);
+	border-color: var(--border-strong);
+	color: var(--text);
+}
+
+.button.secondary:hover {
+	background: var(--hover);
+}
+
+.button.danger {
+	background: transparent;
+	border-color: transparent;
+	color: var(--danger);
+}
+
+.button.danger:hover {
+	background: var(--danger-bg);
+}
+
+.button.small {
+	height: 30px;
+	padding: 0 10px;
+	font-size: 13px;
+}
+
+.button.full {
+	width: 100%;
+}
+
+form.inline {
+	display: inline;
+}
+
+/* Badges and alerts */
+
+.badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.badge {
+	display: inline-block;
+	padding: 2px 8px;
+	background: var(--hover);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	color: var(--muted);
+	font-family: var(--mono);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.alert {
+	margin-bottom: 16px;
+	padding: 10px 12px;
+	border-radius: var(--radius-small);
+	background: var(--danger-bg);
+	color: var(--danger);
+}
+
+.alert.success {
+	background: var(--success-bg);
+	color: var(--success);
+}
+
+.alert.neutral {
+	background: var(--hover);
+	color: var(--text);
+}
+
+/* Footer */
+
+.footer {
+	max-width: var(--page-width);
+	margin: 0 auto;
+	padding: 0 16px 32px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.footer button {
+	padding: 0;
+	background: none;
+	border: 0;
+	color: inherit;
+	font: inherit;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+
+.footer #status,
+.footer #status p {
+	display: inline;
+	margin: 0 0 0 8px;
+}
+
+/* Small screens */
+
+@media (max-width: 640px) {
+	.topbar-inner {
+		gap: 12px;
+	}
+
+	.account span {
+		display: none;
+	}
+
+	.page {
+		padding-top: 24px;
+	}
+
+	.page-head,
+	.inline-form {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.table th:nth-child(n + 3),
+	.table td:nth-child(n + 3):not(.actions) {
+		display: none;
+	}
+}

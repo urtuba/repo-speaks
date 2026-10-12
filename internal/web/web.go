@@ -59,6 +59,10 @@ func newHandler(st *store.Store, logger *slog.Logger, now func() time.Time) http
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("POST /projects", requireLogin(s.createProject))
 	mux.HandleFunc("GET /projects/{id}", requireLogin(s.project))
+	mux.HandleFunc("POST /projects/{id}/invites", requireLogin(s.createInvite))
+	mux.HandleFunc("POST /projects/{id}/invites/{invite}/revoke", requireLogin(s.revokeInvite))
+	mux.HandleFunc("GET /invites/{token}", s.showInvite)
+	mux.HandleFunc("POST /invites/{token}", s.acceptInvite)
 	return middlewares(logger, s.loadSession(mux))
 }
 

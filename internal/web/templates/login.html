@@ -4,14 +4,27 @@
 {{template "head" "Log in"}}
 </head>
 <body>
-	<h1>Log in</h1>
+<main class="auth">
+	<a class="brand" href="/">Repo Speaks</a>
+	<div class="card">
+		<h1>Log in</h1>
+		<p class="muted">Ask your codebase questions in plain language.</p>
 
-	{{with .Error}}<p role="alert">{{.}}</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
 
-	<form method="post" action="/login">
-		<p><label>Username <input name="username" value="{{.Username}}" required autocomplete="username"></label></p>
-		<p><label>Password <input name="password" type="password" required autocomplete="current-password"></label></p>
-		<button>Log in</button>
-	</form>
+		<form method="post" action="/login">
+			{{with .Next}}<input type="hidden" name="next" value="{{.}}">{{end}}
+			<div class="field">
+				<label for="username">Username</label>
+				<input id="username" name="username" value="{{.Username}}" required autocomplete="username" autofocus>
+			</div>
+			<div class="field">
+				<label for="password">Password</label>
+				<input id="password" name="password" type="password" required autocomplete="current-password">
+			</div>
+			<button class="button full">Log in</button>
+		</form>
+	</div>
+</main>
 </body>
 </html>
