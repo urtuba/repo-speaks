@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Repo Speaks</title>
+	<script src="/static/htmx.min.js"></script>
+</head>
+<body>
+	<h1>Repo Speaks</h1>
+	<p>Ask your codebase questions in plain language.</p>
+
+	<button hx-get="/status" hx-target="#status">Check status</button>
+	<div id="status"></div>
+</body>
+</html>
+
+{{define "status"}}
+	{{if .DatabaseOK}}<p>Database: ok</p>{{else}}<p>Database: not reachable</p>{{end}}
+{{end}}
