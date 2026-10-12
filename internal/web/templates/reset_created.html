@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Reset link"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/accounts">Accounts</a> /</p>
+			<h1>Reset link for {{.Target.Username}}</h1>
+		</div>
+	</div>
+
+	<section class="card">
+		<p class="alert success">The link is ready. Copy it now: it is shown only once.</p>
+		<div class="inline-form">
+			<div class="field">
+				<label for="link">Password reset link for <strong>{{.Target.Username}}</strong></label>
+				<input id="link" value="{{.Link}}" readonly>
+			</div>
+			<button class="button" type="button" data-copy="link">Copy</button>
+		</div>
+		<p class="muted small">It works once and stops on {{.ExpiresAt.Format "2 Jan 2006, 15:04 UTC"}}. Send it only to {{.Target.Username}}: whoever opens it can set the password.</p>
+		<p><a class="button secondary" href="/accounts">Back to accounts</a></p>
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

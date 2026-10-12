@@ -21,9 +21,10 @@
 		<a class="brand" href="/">Repo Speaks</a>
 		<nav class="nav">
 			<a href="/">Projects</a>
+			{{if .IsOwner}}<a href="/accounts">Accounts</a>{{end}}
 		</nav>
 		<div class="account">
-			<span>{{.Username}}{{if .IsOwner}} (owner){{end}}</span>
+			<a href="/account">{{.Username}}{{if .IsOwner}} (owner){{end}}</a>
 			<form class="inline" method="post" action="/logout">
 				<button class="button secondary small">Log out</button>
 			</form>

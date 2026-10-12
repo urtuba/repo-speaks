@@ -156,6 +156,15 @@ code {
 	white-space: nowrap;
 }
 
+.account a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.account a:hover {
+	color: var(--text);
+}
+
 /* Page */
 
 .page {
@@ -209,6 +218,10 @@ code {
 	justify-content: space-between;
 	gap: 12px;
 	margin-bottom: 16px;
+}
+
+.card.narrow {
+	max-width: 480px;
 }
 
 .card > :last-child {
@@ -584,12 +597,28 @@ form.inline {
 /* Small screens */
 
 @media (max-width: 640px) {
+	/* Two rows: brand and account on top, the links below. */
 	.topbar-inner {
-		gap: 12px;
+		flex-wrap: wrap;
+		height: auto;
+		gap: 4px 12px;
+		padding: 10px 16px 6px;
 	}
 
-	.account span {
-		display: none;
+	.brand {
+		flex: 1;
+	}
+
+	.nav {
+		order: 3;
+		flex-basis: 100%;
+		margin: 0 -10px;
+	}
+
+	.account a {
+		max-width: 140px;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.page {

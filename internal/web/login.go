@@ -182,15 +182,22 @@ func newAccountForm(w http.ResponseWriter, r *http.Request) (username, password,
 	}
 	username = r.PostFormValue("username")
 	password = r.PostFormValue("password")
-	switch {
-	case auth.ValidateUsername(username) != nil:
-		msg = sentence(auth.ValidateUsername(username))
-	case auth.ValidatePassword(password) != nil:
-		msg = sentence(auth.ValidatePassword(password))
-	case password != r.PostFormValue("password_again"):
-		msg = "The two passwords are not the same."
+	if err := auth.ValidateUsername(username); err != nil {
+		return username, password, sentence(err), true
 	}
-	return username, password, msg, true
+	return username, password, newPasswordMessage(password, r.PostFormValue("password_again")), true
+}
+
+// newPasswordMessage checks a new password and its repeat. It explains
+// the first problem, or returns "".
+func newPasswordMessage(password, again string) string {
+	if err := auth.ValidatePassword(password); err != nil {
+		return sentence(err)
+	}
+	if password != again {
+		return "The two passwords are not the same."
+	}
+	return ""
 }
 
 // safeNext returns next when it is a path on this site, and "/"

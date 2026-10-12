@@ -238,9 +238,11 @@ erDiagram
         time revoked_at
     }
     password_resets {
-        blob token_hash PK
+        int id PK
         int user_id FK "cascade"
-        time expires_at
+        text token_hash UK "sha-256 of the link token"
+        int created_by FK "the owner"
+        time expires_at "24 hours"
         time used_at
     }
     resources {

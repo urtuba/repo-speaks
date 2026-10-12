@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Your account"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<h1>Your account</h1>
+	</div>
+
+	<section class="card narrow">
+		<div class="card-head">
+			<h2>Change password</h2>
+			<span class="muted small">{{.User.Username}}</span>
+		</div>
+		{{if .Saved}}<p class="alert success" role="status">Your password is changed. You are logged out everywhere else.</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form method="post" action="/account">
+			<input type="text" name="username" value="{{.User.Username}}" autocomplete="username" hidden>
+			<div class="field">
+				<label for="current-password">Current password</label>
+				<input id="current-password" name="current_password" type="password" required autocomplete="current-password">
+			</div>
+			{{template "passwordFields"}}
+			<button class="button">Change password</button>
+		</form>
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>
