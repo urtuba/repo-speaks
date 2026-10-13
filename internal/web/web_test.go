@@ -30,6 +30,8 @@ func TestRoutes(t *testing.T) {
 		{"/setup", http.StatusOK, `<link rel="stylesheet" href="/static/app.css">`},
 		{"/static/app.css", http.StatusOK, "--bg"},
 		{"/static/app.js", http.StatusOK, "data-copy"},
+		{"/setup", http.StatusOK, `<link rel="icon" href="/static/logo.svg" type="image/svg+xml">`},
+		{"/static/logo.svg", http.StatusOK, "<svg"},
 		{"/status", http.StatusOK, "Database: ok"},
 		{"/healthz", http.StatusOK, "ok"},
 		{"/static/htmx.min.js", http.StatusOK, "htmx"},

@@ -161,13 +161,14 @@ strong {
 	white-space: nowrap;
 }
 
-/* The mark: a small speech bubble drawn with CSS. */
+/* The mark: logo.svg used as a mask, so it takes the text color.
+   The same file is the favicon and the README logo. */
 .brand::before {
 	content: "";
-	width: 18px;
-	height: 18px;
-	border-radius: 5px 5px 5px 1px;
-	background: var(--text);
+	width: 20px;
+	height: 20px;
+	background: currentColor;
+	mask: url("logo.svg") center / contain no-repeat;
 }
 
 .nav {
@@ -284,6 +285,11 @@ strong {
 .auth .brand {
 	margin-bottom: 24px;
 	font-size: 18px;
+}
+
+.auth .brand::before {
+	width: 24px;
+	height: 24px;
 }
 
 .auth .card {
