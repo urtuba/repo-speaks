@@ -9,9 +9,30 @@ import (
 
 // Project holds members, resources and agents.
 type Project struct {
-	ID        int64
-	Name      string
-	CreatedAt time.Time
+	ID   int64
+	Name string
+	// SyncIntervalHours is how often the timer syncs the project's
+	// resources, or 0 when the timer is off.
+	SyncIntervalHours int
+	// MaxFileBytes is the largest file a sync keeps in a clone.
+	MaxFileBytes int64
+	CreatedAt    time.Time
+}
+
+// projectColumns is the SELECT list scanProject reads.
+const projectColumns = "id, name, sync_interval_hours, max_file_bytes, created_at"
+
+// scanProject reads one row selected with projectColumns.
+func scanProject(row scanner) (Project, error) {
+	var p Project
+	var interval sql.NullInt64 // NULL when the timer is off
+	var createdAt int64
+	if err := row.Scan(&p.ID, &p.Name, &interval, &p.MaxFileBytes, &createdAt); err != nil {
+		return Project{}, noRows(err)
+	}
+	p.SyncIntervalHours = int(interval.Int64)
+	p.CreatedAt = unix(createdAt)
+	return p, nil
 }
 
 // Member is an account in a project, with the permission names it holds.
@@ -21,38 +42,33 @@ type Member struct {
 	Permissions []string // sorted by name
 }
 
-// CreateProject creates a project with no members.
+// CreateProject creates a project with no members and the default
+// settings, which the database fills in.
 func (s *Store) CreateProject(ctx context.Context, name string, now time.Time) (Project, error) {
-	res, err := s.db.ExecContext(ctx,
-		"INSERT INTO projects (name, created_at) VALUES (?, ?)", name, now.Unix())
+	row := s.db.QueryRowContext(ctx,
+		"INSERT INTO projects (name, created_at) VALUES (?, ?) RETURNING "+projectColumns,
+		name, now.Unix())
+	p, err := scanProject(row)
 	if err != nil {
 		return Project{}, fmt.Errorf("create project: %w", err)
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return Project{}, fmt.Errorf("create project: %w", err)
-	}
-	return Project{ID: id, Name: name, CreatedAt: unix(now.Unix())}, nil
+	return p, nil
 }
 
 // Project returns the project with the id, or ErrNotFound.
 func (s *Store) Project(ctx context.Context, id int64) (Project, error) {
-	var p Project
-	var createdAt int64
-	err := s.db.QueryRowContext(ctx,
-		"SELECT id, name, created_at FROM projects WHERE id = ?", id).
-		Scan(&p.ID, &p.Name, &createdAt)
+	row := s.db.QueryRowContext(ctx, "SELECT "+projectColumns+" FROM projects WHERE id = ?", id)
+	p, err := scanProject(row)
 	if err != nil {
-		return Project{}, fmt.Errorf("project %d: %w", id, noRows(err))
+		return Project{}, fmt.Errorf("project %d: %w", id, err)
 	}
-	p.CreatedAt = unix(createdAt)
 	return p, nil
 }
 
 // AllProjects returns every project, by name.
 func (s *Store) AllProjects(ctx context.Context) ([]Project, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, name, created_at FROM projects ORDER BY name, id")
+		"SELECT "+projectColumns+" FROM projects ORDER BY name, id")
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
@@ -62,10 +78,9 @@ func (s *Store) AllProjects(ctx context.Context) ([]Project, error) {
 // UserProjects returns the projects the account is a member of, by name.
 func (s *Store) UserProjects(ctx context.Context, userID int64) ([]Project, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.created_at
-		FROM projects p JOIN memberships m ON m.project_id = p.id
-		WHERE m.user_id = ?
-		ORDER BY p.name, p.id`, userID)
+		SELECT `+projectColumns+`
+		FROM projects WHERE id IN (SELECT project_id FROM memberships WHERE user_id = ?)
+		ORDER BY name, id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list projects of user %d: %w", userID, err)
 	}
@@ -77,12 +92,10 @@ func scanProjects(rows *sql.Rows) ([]Project, error) {
 	defer rows.Close()
 	var list []Project
 	for rows.Next() {
-		var p Project
-		var createdAt int64
-		if err := rows.Scan(&p.ID, &p.Name, &createdAt); err != nil {
+		p, err := scanProject(rows)
+		if err != nil {
 			return nil, err
 		}
-		p.CreatedAt = unix(createdAt)
 		list = append(list, p)
 	}
 	return list, rows.Err()
@@ -173,8 +186,27 @@ func (s *Store) RenameProject(ctx context.Context, id int64, name string) error 
 	return oneRow(res, fmt.Sprintf("project %d", id))
 }
 
+// SetSyncSettings changes how often the project's resources sync, in
+// hours (0 turns the timer off), and the largest file a sync keeps. The
+// caller has checked the values. It returns ErrNotFound for a missing
+// project.
+func (s *Store) SetSyncSettings(ctx context.Context, id int64, intervalHours int, maxFileBytes int64) error {
+	var interval any // NULL turns the timer off
+	if intervalHours != 0 {
+		interval = intervalHours
+	}
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE projects SET sync_interval_hours = ?, max_file_bytes = ? WHERE id = ?",
+		interval, maxFileBytes, id)
+	if err != nil {
+		return fmt.Errorf("set sync settings: %w", err)
+	}
+	return oneRow(res, fmt.Sprintf("project %d", id))
+}
+
 // DeleteProject deletes a project and everything in it: memberships,
-// permissions and invites go with it (ON DELETE CASCADE).
+// permissions, invites, resources and their jobs go with it (ON DELETE
+// CASCADE). The clones on disk are removed later by the jobs loop.
 func (s *Store) DeleteProject(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
 	if err != nil {

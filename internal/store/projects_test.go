@@ -55,6 +55,46 @@ func TestProjects(t *testing.T) {
 	}
 }
 
+func TestSyncSettings(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.SyncIntervalHours != 6 || p.MaxFileBytes != 5<<20 {
+		t.Errorf("defaults = %d hours, %d bytes, want 6 hours, 5 MB", p.SyncIntervalHours, p.MaxFileBytes)
+	}
+
+	tests := []struct {
+		name     string
+		interval int
+		maxBytes int64
+	}{
+		{"every hour", 1, 1 << 20},
+		{"timer off", 0, 100 << 20},
+		{"every day", 24, 5 << 20},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := s.SetSyncSettings(ctx, p.ID, tt.interval, tt.maxBytes); err != nil {
+				t.Fatal(err)
+			}
+			got, err := s.Project(ctx, p.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.SyncIntervalHours != tt.interval || got.MaxFileBytes != tt.maxBytes {
+				t.Errorf("settings = %d hours, %d bytes, want %d, %d", got.SyncIntervalHours, got.MaxFileBytes, tt.interval, tt.maxBytes)
+			}
+		})
+	}
+
+	if err := s.SetSyncSettings(ctx, 999, 6, 5<<20); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing project: error = %v, want ErrNotFound", err)
+	}
+}
+
 func TestMembers(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)
