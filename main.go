@@ -1,5 +1,6 @@
-// Command repo-speaks runs the Repo Speaks server: the web UI, and later the
-// agents and sync workers, all in one process.
+// Command repo-speaks runs the Repo Speaks server: the web UI and the
+// background jobs that sync repositories, and later the agents, all in
+// one process.
 package main
 
 import (
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/urtuba/repo-speaks/internal/config"
+	"github.com/urtuba/repo-speaks/internal/jobs"
 	"github.com/urtuba/repo-speaks/internal/store"
 	"github.com/urtuba/repo-speaks/internal/sync"
 	"github.com/urtuba/repo-speaks/internal/web"
@@ -76,10 +78,15 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		return nil
 	})
 	g.Go(func() error {
-		<-ctx.Done() // Ctrl+C, SIGTERM, or the server goroutine failed
+		<-ctx.Done() // Ctrl+C, SIGTERM, or another goroutine failed
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
+	})
+	// The jobs loop stops when ctx ends: a running sync is cut off and
+	// goes back to the queue for the next start.
+	g.Go(func() error {
+		return jobs.New(st, syncer, logger).Run(ctx)
 	})
 	return g.Wait()
 }
