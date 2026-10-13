@@ -22,7 +22,7 @@ flowchart TB
     asker["<b>Asker</b><br/>Person<br/>Asks questions about the code"]
     rs["<b>Repo Speaks</b><br/>Software system<br/>Reads your repositories and answers<br/>questions on behalf of the technical team"]
     llm["<b>LLM API</b><br/>External system<br/>OpenAI-compatible (assumed)"]
-    gh["<b>GitHub</b><br/>External system<br/>Access method: open"]
+    gh["<b>GitHub</b><br/>External system<br/>Public repos, or a fine-grained token"]
 
     builder -- "Sends invite links" --> asker
     builder -- "Creates projects, manages resources and agents" --> rs
@@ -59,7 +59,7 @@ flowchart TB
 - **Jobs are database rows**, so a restart does not lose a sync in progress. There is no Redis.
 - **SQLite** is the database: a file in `/data`, used from inside the Go process through a pure-Go driver.
 - **One data folder** (`/data`) holds the database and the clones (`/data/repos/<project>/<resource>`). One volume to mount, one folder to back up.
-- **Clone protection:** the repository size is checked before cloning, only the latest commit is fetched, and files over a per-project limit (default 5 MB) are skipped.
+- **Clone protection:** the repository size is checked before cloning (1 GB at most), only the latest commit is fetched, and files over a per-project limit (default 5 MB) are deleted from the clone.
 
 ## Main flow: an asker asks a question
 
@@ -103,25 +103,28 @@ sequenceDiagram
     Web->>DB: Check resources:edit, save the resource, queue a sync job
     Web-->>Builder: "Sync queued"
     Note over Worker,DB: The timer queues the same job when the last sync is older than the interval
-    Worker->>DB: Claim the oldest queued job (UPDATE ... RETURNING)
-    Worker->>GH: Ask for the repository size (access method: open)
-    alt Over the size limit
-        Worker->>DB: Mark the job failed, save the reason
+    Worker->>DB: Claim the oldest due job (UPDATE ... RETURNING)
+    Worker->>GH: Ask the API for the repository size
+    alt Over 1 GB, or not found
+        Worker->>DB: Mark the job failed, save the reason on the resource
     else Size is fine
-        Worker->>GH: Fetch only the latest commit
+        Worker->>GH: git clone of the latest commit only
         GH-->>Worker: Files
-        Worker->>Files: Write into a new folder, skip files over the file limit
-        Worker->>Files: Rename the new folder over the old one
+        Worker->>Files: Write into a new folder, then delete .git and files over the file limit
         Note over Worker,Files: Indexing (open) runs here
-        Worker->>DB: Save the sync time, mark the job done
+        Worker->>DB: Point the resource at the new folder, save the commit and the sync time
+        Worker->>Files: Delete older folders, but keep the previous one
+        Worker->>DB: Mark the job done
     end
     opt Network or GitHub error
-        Worker->>DB: Queue a retry with a longer wait. After 3 tries, mark it failed with the error
+        Worker->>DB: Queue a retry after 1, then 4 minutes. After 3 tries, mark it failed and save the error on the resource
     end
 ```
 
 - **One open job per resource.** Pressing "Sync now" twice does not start two syncs.
-- **The rename** means an agent reads either the old clone or the new one, never half of each.
+- **A new folder for every sync.** The resource points at a folder only once it is complete, so an agent reads either the old clone or the new one, never half of each. The previous folder stays until the next sync, because a question may still read it. A sync needs room for three clones at most.
+- **The timer skips resources tried within the interval**, so a failing repository is not tried again every few minutes.
+- **git runs boxed in.** The app builds the clone URL from checked names; git gets a fixed environment, speaks only https, writes symlinks as plain files, skips submodules, and is killed with its helpers after 10 minutes. The token reaches git only as an HTTP header through the environment.
 - **The web handler only queues.** A slow clone never blocks a page.
 
 ## Invite flow: a new person joins a project
@@ -206,6 +209,7 @@ erDiagram
         int attachment_max_bytes "default 262144, max 1048576"
         int chat_retention_days "null = forever; 30, 90, 365"
         int sync_interval_hours "null = off; 1, 6 (default), 24"
+        int max_file_bytes "default 5 MB; 1 to 100 MB"
         time created_at
     }
     memberships {
@@ -248,11 +252,17 @@ erDiagram
     resources {
         int id PK
         int project_id FK "cascade"
-        text kind "github_repo, markdown"
-        text location "repo URL or path"
-        text branch
+        text kind "github_repo; markdown later"
+        text owner "no case"
+        text repo "no case"
+        text branch "null = default branch"
+        text token "plain text, write-only; only the sync reads it"
+        text token_hint "last 4 characters"
+        text clone_dir "current folder in repos/project/resource"
+        text last_commit "full commit ID"
         time last_synced_at
         text last_error
+        time created_at
     }
     agents {
         int id PK
@@ -301,10 +311,11 @@ erDiagram
         text kind "sync_resource"
         int resource_id FK "cascade; null for project jobs"
         text status "queued, running, done, failed"
-        int attempts
+        int attempts "3 at most"
         time run_after
         time locked_at "claimed with UPDATE ... RETURNING"
         text error
+        time created_at "done and failed rows go after 7 days"
     }
 ```
 
@@ -314,6 +325,7 @@ erDiagram
 - An answer agent's chat holds exactly one question and one answer. The app refuses a second question.
 - Session IDs and link tokens are stored only as SHA-256 hashes.
 - `member_permissions` references `permissions`, so the database rejects unknown names.
+- A resource is unique per project, repository and branch; the default branch counts as one branch. A partial unique index allows one open (queued or running) job per resource.
 
 ## Components of the App
 
@@ -381,7 +393,7 @@ internal/
   config/            settings from the environment
 ```
 
-Built so far: `web`, `auth`, `permissions`, `store`, `config`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app.
+Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
 
 ## Known risks
 
@@ -390,10 +402,11 @@ Built so far: `web`, `auth`, `permissions`, `store`, `config`. Dependencies poin
 | A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; managers can review chats (`chats:view`) |
 | Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM provider; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
 | Cost running away | Agentic search can make many LLM calls for one question | A rate limit per agent; a step limit per question; usage recorded per project |
+| A hostile repository | A repository or a name could try to read server files, reach other hosts, fill the disk or hang the worker | Checked names and an app-built URL; git with a fixed environment, https only, symlinks as plain files, no submodules; a size check before cloning; a timeout that kills git's process group |
+| Tokens at rest | A copy of the data folder or a backup holds every GitHub token in plain text | Tokens are write-only in the UI and kept out of URLs, arguments, logs and saved errors; fine-grained tokens limit each to one repository, read-only; the data folder must be readable by the app only |
 
 ## Open decisions
 
 - Indexing: agentic search or embeddings
 - LLM provider: one SDK or any OpenAI-compatible endpoint
-- GitHub access: personal access token or GitHub App
 - How the owner resets their own password
