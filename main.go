@@ -19,6 +19,7 @@ import (
 
 	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/store"
+	"github.com/urtuba/repo-speaks/internal/sync"
 	"github.com/urtuba/repo-speaks/internal/web"
 )
 
@@ -46,6 +47,15 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		return err
 	}
 	defer st.Close()
+
+	syncer, err := sync.New(st, cfg.DataDir)
+	if err != nil {
+		return err
+	}
+	// Without git no repository can sync, so stop now with a clear message.
+	if err := syncer.CheckGit(ctx); err != nil {
+		return err
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
