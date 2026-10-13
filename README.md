@@ -28,7 +28,7 @@ On first start, open http://localhost:8080/setup to create the owner account.
 
 ### Adding repositories
 
-A builder adds a GitHub repository on the project page, as `owner/repo` or its GitHub address, with an optional branch. The server clones the latest commit when the repository is added, when someone presses "Sync now", and on the project's timer (every 6 hours by default). Repositories over 1 GB are refused, files over the project's limit (5 MB by default) are left out, and submodules are not cloned.
+A builder adds a GitHub repository on the project page, as `owner/repo` or its GitHub address, with an optional branch. The server clones the latest commit when the repository is added, when someone presses "Sync now", and on the project's timer (every 6 hours by default). Repositories over 1 GB are refused, files over the project's limit (5 MB by default) are left out, and submodules are not cloned. Behind a proxy, git uses the server's `HTTPS_PROXY` and `NO_PROXY` settings.
 
 A private repository needs a token. On GitHub, go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, and generate a new token. Pick the repository's owner, choose "Only select repositories" with that one repository, and set the repository permission "Contents" to "Read-only". Paste the token into the Token field. Repo Speaks never shows it again and sends it only to GitHub, but it stores it in plain text: anyone with a copy of the data folder or a backup has it. Keep the data folder readable by the app's user only.
 

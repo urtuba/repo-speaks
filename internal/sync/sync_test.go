@@ -267,11 +267,16 @@ func TestSync(t *testing.T) {
 }
 
 func TestSyncEnvironment(t *testing.T) {
-	// Settings in the server's environment must not reach git.
+	// Settings in the server's environment must not reach git, except
+	// the HTTPS proxy settings.
 	t.Setenv("GIT_DIR", "/tmp/elsewhere")
 	t.Setenv("GIT_SSH_COMMAND", "touch /tmp/pwned")
 	t.Setenv("GIT_CONFIG_PARAMETERS", "'core.hooksPath'='/tmp'")
+	t.Setenv("HTTP_PROXY", "http://plain-proxy.example")
 	t.Setenv("HTTPS_PROXY", "http://proxy.example")
+	t.Setenv("NO_PROXY", "internal.example")
+	t.Setenv("https_proxy", "") // empty values are left out
+	t.Setenv("no_proxy", "")
 
 	f := newSyncFixture(t, "", testToken)
 	if err := f.sync(t); err != nil {
@@ -287,6 +292,8 @@ func TestSyncEnvironment(t *testing.T) {
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_ALLOW_PROTOCOL=https",
 		"GIT_LFS_SKIP_SMUDGE=1",
+		"HTTPS_PROXY=http://proxy.example",
+		"NO_PROXY=internal.example",
 	}
 	wantClone := append(slices.Clone(base),
 		"GIT_CONFIG_COUNT=1",

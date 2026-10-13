@@ -35,7 +35,8 @@ type Syncer struct {
 	store    *store.Store
 	reposDir string // absolute, because git runs in another folder
 	runner   Runner
-	path     string // the PATH git runs with
+	path     string   // the PATH git runs with
+	proxy    []string // the server's HTTPS proxy settings, for git
 	client   *http.Client
 	now      func() time.Time
 
@@ -58,6 +59,7 @@ func New(st *store.Store, dataDir string) (*Syncer, error) {
 		reposDir: abs,
 		runner:   execRunner{program: "git"},
 		path:     os.Getenv("PATH"),
+		proxy:    proxyEnv(),
 		client:   &http.Client{Timeout: apiTimeout},
 		now:      time.Now,
 		apiBase:  "https://api.github.com",

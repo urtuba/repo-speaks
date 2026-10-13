@@ -94,9 +94,9 @@ func lastLines(s string, n int) string {
 	return strings.Join(lines, " ")
 }
 
-// env returns the whole environment git runs with. Nothing comes from the
-// server's own environment except PATH, so no setting there can change
-// what git does.
+// env returns the whole environment git runs with. Only PATH and the
+// HTTPS proxy settings come from the server's own environment. No other
+// setting there can change what git does.
 //
 // The token goes in only through GIT_CONFIG_COUNT, as an HTTP header for
 // GitHub's address. It never appears in the URL, the arguments or
@@ -111,6 +111,7 @@ func (s *Syncer) env(home, token string) []string {
 		"GIT_ALLOW_PROTOCOL=https",    // no file://, ssh or ext:: transports
 		"GIT_LFS_SKIP_SMUDGE=1",       // no large file downloads
 	}
+	env = append(env, s.proxy...)
 	if s.caFile != "" {
 		env = append(env, "GIT_SSL_CAINFO="+s.caFile)
 	}
@@ -120,6 +121,20 @@ func (s *Syncer) env(home, token string) []string {
 			"GIT_CONFIG_KEY_0=http."+s.gitBase+"/.extraheader",
 			"GIT_CONFIG_VALUE_0=Authorization: Basic "+basicAuth(token),
 		)
+	}
+	return env
+}
+
+// proxyEnv returns the server's HTTPS proxy settings. The size check
+// follows them through Go's HTTP client, so git must follow them too, or
+// a server behind a proxy could check a repository but never clone it.
+// git clones over HTTPS only, so the HTTP proxy settings are left out.
+func proxyEnv() []string {
+	var env []string
+	for _, k := range []string{"HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy"} {
+		if v := os.Getenv(k); v != "" {
+			env = append(env, k+"="+v)
+		}
 	}
 	return env
 }
