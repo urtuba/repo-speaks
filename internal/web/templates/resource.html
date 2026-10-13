@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" (print .Resource.Owner "/" .Resource.Repo)}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}#resources">{{.Project.Name}}</a> /</p>
+			<h1>{{.Resource.Owner}}/{{.Resource.Repo}}</h1>
+		</div>
+		<div class="head-actions">
+			{{with .Resource.Branch}}<span class="badge">{{.}}</span>{{else}}<span class="muted small">default branch</span>{{end}}
+		</div>
+	</div>
+
+	<section class="card narrow" id="token">
+		<div class="card-head">
+			<h2>Token</h2>
+		</div>
+		{{if eq .Saved "set"}}<p class="alert success" role="status">Token saved. The next sync uses it.</p>{{end}}
+		{{if eq .Saved "cleared"}}<p class="alert success" role="status">Token cleared.</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		{{if .Resource.HasToken}}
+		<p>Token set <span class="mono">····{{.Resource.TokenHint}}</span></p>
+		{{else}}
+		<p class="muted">No token. A public repository needs none.</p>
+		{{end}}
+		<p class="muted small">For a private repository, create a fine-grained personal access token on GitHub with access to this repository only and the Contents permission set to read-only. The token is stored on this server and never shown again.</p>
+		<form method="post" action="/projects/{{.Project.ID}}/resources/{{.Resource.ID}}/token">
+			<div class="field">
+				<label for="token">{{if .Resource.HasToken}}New token{{else}}Token{{end}}</label>
+				<input id="token" name="token" type="password" autocomplete="off" required maxlength="255">
+			</div>
+			<div class="form-actions">
+				<button class="button">{{if .Resource.HasToken}}Replace token{{else}}Set token{{end}}</button>
+				<a class="button secondary" href="/projects/{{.Project.ID}}#resources">Back</a>
+			</div>
+		</form>
+		{{if .Resource.HasToken}}
+		<form class="separated" method="post" action="/projects/{{.Project.ID}}/resources/{{.Resource.ID}}/token/clear">
+			<button class="button danger" data-confirm="Clear the token? A private repository stops syncing.">Clear token</button>
+		</form>
+		{{end}}
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

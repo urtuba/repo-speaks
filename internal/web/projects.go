@@ -110,14 +110,17 @@ func (s *server) openProject(w http.ResponseWriter, r *http.Request) (store.Proj
 	return p, perms, true
 }
 
-// project shows one project: the viewer's permissions, the members (with
-// members:view) and the invite links (with members:edit).
+// project shows one project: the viewer's permissions, the resources
+// (with resources:view), the members (with members:view) and the invite
+// links (with members:edit).
 func (s *server) project(w http.ResponseWriter, r *http.Request) {
 	p, perms, ok := s.openProject(w, r)
 	if !ok {
 		return
 	}
-	s.renderProject(w, r, http.StatusOK, p, perms, "")
+	s.renderProjectPage(w, r, http.StatusOK, p, perms, projectPage{
+		Notice: resourceNotices[r.URL.Query().Get("notice")],
+	})
 }
 
 // projectPage is the data for project.html.
@@ -133,24 +136,42 @@ type projectPage struct {
 	Presets       []permissions.Preset // the presets the viewer may invite with
 	Invites       []store.Invite
 	Error         string // shown in the invite section
+
+	CanSeeResources bool
+	Resources       resourceList
+	Notice          string // after a resource action, such as "Sync queued."
+	// The add form, sent back after an error. The token is never sent back.
+	ResourceError string
+	RepoInput     string
+	BranchInput   string
 }
 
 // renderProject renders the project page with an optional error for the
 // invite section.
 func (s *server) renderProject(w http.ResponseWriter, r *http.Request, status int, p store.Project, perms permissions.Set, errMsg string) {
+	s.renderProjectPage(w, r, status, p, perms, projectPage{Error: errMsg})
+}
+
+// renderProjectPage renders the project page. data holds what the
+// request adds, such as a form error; the rest is loaded here.
+func (s *server) renderProjectPage(w http.ResponseWriter, r *http.Request, status int, p store.Project, perms permissions.Set, data projectPage) {
 	ctx := r.Context()
 	sess := currentSession(r)
-	data := projectPage{
-		User:          &sess.user,
-		Project:       p,
-		Permissions:   perms.List(),
-		IsMember:      !sess.user.IsOwner,
-		CanEdit:       perms.Has(permissions.PermProjectEdit),
-		CanSeeMembers: perms.Has(permissions.PermMembersView),
-		CanInvite:     perms.Has(permissions.PermMembersEdit),
-		Error:         errMsg,
-	}
+	data.User = &sess.user
+	data.Project = p
+	data.Permissions = perms.List()
+	data.IsMember = !sess.user.IsOwner
+	data.CanEdit = perms.Has(permissions.PermProjectEdit)
+	data.CanSeeMembers = perms.Has(permissions.PermMembersView)
+	data.CanInvite = perms.Has(permissions.PermMembersEdit)
+	data.CanSeeResources = perms.Has(permissions.PermResourcesView)
 	var err error
+	if data.CanSeeResources {
+		if data.Resources, err = s.loadResources(r, p.ID, perms.Has(permissions.PermResourcesEdit)); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+	}
 	if data.CanSeeMembers {
 		if data.Members, err = s.memberViews(r, p.ID, sess.user.ID, perms); err != nil {
 			s.serverError(w, r, err)

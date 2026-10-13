@@ -35,6 +35,37 @@
 		{{end}}
 	</section>
 
+	<section class="card" id="resources">
+		<div class="card-head">
+			<h2>Repositories</h2>
+		</div>
+		{{if .CanSeeResources}}
+		{{with .Notice}}<p class="alert success" role="status">{{.}}</p>{{end}}
+		{{template "resources" .Resources}}
+		{{if .Resources.CanEdit}}
+		{{with .ResourceError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/resources">
+			<div class="field wide">
+				<label for="repo">GitHub repository</label>
+				<input id="repo" name="repo" value="{{.RepoInput}}" required maxlength="200" placeholder="owner/repo or https://github.com/owner/repo">
+			</div>
+			<div class="field">
+				<label for="branch">Branch <span class="muted">(optional)</span></label>
+				<input id="branch" name="branch" value="{{.BranchInput}}" maxlength="255" placeholder="default branch">
+			</div>
+			<div class="field">
+				<label for="token">Token <span class="muted">(private only)</span></label>
+				<input id="token" name="token" type="password" autocomplete="off" maxlength="255">
+			</div>
+			<button class="button">Add repository</button>
+		</form>
+		<p class="muted small">A public repository needs no token. For a private one, use a fine-grained token with read-only access to that repository's contents. The token is never shown again.</p>
+		{{end}}
+		{{else}}
+		<p class="muted">You cannot see this project's repositories.</p>
+		{{end}}
+	</section>
+
 	<section class="card" id="members">
 		<div class="card-head">
 			<h2>Members</h2>

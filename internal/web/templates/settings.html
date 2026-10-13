@@ -28,12 +28,34 @@
 		</form>
 	</section>
 
+	<section class="card" id="sync">
+		<div class="card-head">
+			<h2>Sync</h2>
+		</div>
+		{{if .SyncSaved}}<p class="alert success" role="status">Saved.</p>{{end}}
+		{{with .SyncError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/settings/sync">
+			<div class="field">
+				<label for="sync_interval">Sync repositories</label>
+				<select id="sync_interval" name="sync_interval">
+					{{range .Intervals}}<option value="{{.Hours}}"{{if eq .Hours $.SyncInterval}} selected{{end}}>{{.Label}}</option>{{end}}
+				</select>
+			</div>
+			<div class="field">
+				<label for="max_file_mb">Largest file kept, in MB</label>
+				<input id="max_file_mb" name="max_file_mb" type="number" min="1" max="100" step="1" value="{{.MaxFileMB}}" required>
+			</div>
+			<button class="button">Save</button>
+		</form>
+		<p class="muted small">A sync also runs when a repository is added and when someone presses Sync now. Files larger than the limit are left out of the clone, so agents cannot read them. A new limit applies from the next sync.</p>
+	</section>
+
 	{{if .User.IsOwner}}
 	<section class="card danger-zone">
 		<div class="card-head">
 			<h2>Delete project</h2>
 		</div>
-		<p class="muted">This deletes the project with its members, invite links, agents and chats. The accounts stay. It cannot be undone.</p>
+		<p class="muted">This deletes the project with its members, invite links, repositories, agents and chats. The accounts stay. It cannot be undone.</p>
 		{{with .DeleteError}}<p class="alert" role="alert">{{.}}</p>{{end}}
 		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/delete">
 			<div class="field">

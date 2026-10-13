@@ -432,6 +432,10 @@ strong {
 	font-weight: 600;
 }
 
+.field label .muted {
+	font-weight: 400;
+}
+
 .field .hint {
 	margin: 6px 0 0;
 	color: var(--muted);
@@ -509,6 +513,18 @@ select {
 .inline-form + .table,
 .inline-form + .empty {
 	margin-top: 20px;
+}
+
+/* A field that needs more room than the others in its row. */
+.inline-form .field.wide {
+	flex: 2;
+}
+
+/* A second form below the first, such as "Clear token". */
+form.separated {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px solid var(--border);
 }
 
 .form-actions,
@@ -625,6 +641,32 @@ form.inline {
 	color: var(--primary-text);
 	font-family: var(--font);
 	font-weight: 600;
+}
+
+/* Resources: a commit ID, a note under a name, a sync error. */
+
+.mono {
+	font-family: var(--mono);
+	font-size: var(--text-sm);
+}
+
+.sub {
+	display: block;
+	margin-top: 2px;
+}
+
+.error-text {
+	display: block;
+	max-width: 40ch;
+	margin-top: 4px;
+	color: var(--danger);
+	font-size: var(--text-sm);
+	overflow-wrap: anywhere;
+}
+
+#resource-list + .alert,
+#resource-list + .inline-form {
+	margin-top: 20px;
 }
 
 /* Alerts. The sign on the left is drawn with CSS. */

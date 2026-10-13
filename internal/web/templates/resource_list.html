@@ -1,0 +1,45 @@
+{{/* resources is the list of a project's resources. The project page
+     includes it, and GET /projects/{id}/resources serves it alone. While
+     a sync is queued or running, htmx loads it again every 5 seconds and
+     swaps it in, until no sync is open. The argument is a resourceList. */}}
+{{define "resources"}}
+<div id="resource-list"{{if .Open}} hx-get="/projects/{{.ProjectID}}/resources" hx-trigger="every 5s" hx-swap="outerHTML"{{end}}>
+	{{if .Items}}
+	<table class="table">
+		<thead>
+			<tr><th>Repository</th><th>Branch</th><th>Last sync</th><th>Commit</th><th>Status</th><th></th></tr>
+		</thead>
+		<tbody>
+			{{range .Items}}
+			<tr>
+				<td>
+					<a href="{{.RepoURL}}">{{.Owner}}/{{.Repo}}</a>
+					{{if and $.CanEdit .HasToken}}<span class="muted small sub">Token set ····{{.TokenHint}}</span>{{end}}
+				</td>
+				<td>{{with .Branch}}<span class="badge">{{.}}</span>{{else}}<span class="muted">default branch</span>{{end}}</td>
+				<td>{{if .Ago}}<span title="{{.SyncedAt}}">{{.Ago}}</span>{{else}}<span class="muted">never</span>{{end}}</td>
+				<td>{{if .ShortCommit}}<a class="mono" href="{{.CommitURL}}">{{.ShortCommit}}</a>{{else}}<span class="muted">none</span>{{end}}</td>
+				<td>
+					{{with .OpenJob}}<span class="badge">{{.}}</span>{{end}}
+					{{with .LastError}}<span class="error-text">{{.}}</span>{{end}}
+				</td>
+				<td class="actions">
+					{{if $.CanEdit}}
+					<form class="inline" method="post" action="/projects/{{$.ProjectID}}/resources/{{.ID}}/sync">
+						<button class="button secondary small">Sync now</button>
+					</form>
+					<a class="button secondary small" href="/projects/{{$.ProjectID}}/resources/{{.ID}}">Token</a>
+					<form class="inline" method="post" action="/projects/{{$.ProjectID}}/resources/{{.ID}}/remove">
+						<button class="button danger small" data-confirm="Remove {{.Owner}}/{{.Repo}}? Its clone is deleted.">Remove</button>
+					</form>
+					{{end}}
+				</td>
+			</tr>
+			{{end}}
+		</tbody>
+	</table>
+	{{else}}
+	<p class="empty">No repositories yet.{{if .CanEdit}} Add one below.{{end}}</p>
+	{{end}}
+</div>
+{{end}}
