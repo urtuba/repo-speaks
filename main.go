@@ -56,6 +56,9 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 	defer stop()
 
 	cfg := config.Load(getenv)
+	if err := cfg.Check(); err != nil {
+		return err
+	}
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
 
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
