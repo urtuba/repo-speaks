@@ -81,11 +81,28 @@ func TestCopyTo(t *testing.T) {
 	if _, err := s.CreateOwner(ctx, "samed", "hash", testNow); err != nil {
 		t.Fatal(err)
 	}
+	// The copy is made by a running backup job, while a sync waits.
+	if _, err := s.QueueBackup(ctx, testNow); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ClaimJob(ctx, testNow); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.CreateProject(ctx, "Customer portal", testNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddResource(ctx, NewResource{ProjectID: p.ID, Owner: "urtuba", Repo: "demo"}, testNow); err != nil {
+		t.Fatal(err)
+	}
 	dir := t.TempDir()
 
 	path := filepath.Join(dir, "copy.db")
 	if err := s.CopyTo(ctx, path); err != nil {
 		t.Fatal(err)
+	}
+	if extra, _ := filepath.Glob(filepath.Join(dir, "copy.db-*")); len(extra) > 0 {
+		t.Errorf("files next to the copy: %v", extra)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -104,6 +121,13 @@ func TestCopyTo(t *testing.T) {
 	defer c.Close()
 	if _, err := c.UserByUsername(ctx, "samed"); err != nil {
 		t.Errorf("copy has no owner: %v", err)
+	}
+	// A restored copy must not start the backup that made it again.
+	if status, err := c.OpenBackupJob(ctx); err != nil || status != "" {
+		t.Errorf("backup job in the copy: %q, %v; want none", status, err)
+	}
+	if job, err := c.ClaimJob(ctx, testNow); err != nil || job.Kind != JobSyncResource {
+		t.Errorf("copy's next job = %+v, %v; want the queued sync", job, err)
 	}
 
 	// A file that is not empty is never written over, and stays.

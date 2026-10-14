@@ -30,11 +30,32 @@ type Backup struct {
 	FinishedAt time.Time
 }
 
-// CopyTo writes a consistent copy of the database to path, while the
-// server keeps running. path must not exist, or be an empty file. The
-// copy gets mode 0600. On failure, path is removed.
+// CopyTo writes a consistent copy of the database to path for a
+// backup, while the server keeps running. path must not exist, or be an
+// empty file. The copy gets mode 0600. On failure, path is removed.
+//
+// Backup jobs are left out of the copy. The backup that makes the copy
+// is one of them, and a restored database must not start it again.
 func (s *Store) CopyTo(ctx context.Context, path string) error {
-	return copyDB(ctx, s.db, path)
+	if err := copyDB(ctx, s.db, path); err != nil {
+		return err
+	}
+	if err := dropBackupJobs(ctx, path); err != nil {
+		os.Remove(path)
+		return fmt.Errorf("copy database: %w", err)
+	}
+	return nil
+}
+
+// dropBackupJobs deletes the backup jobs in the database file at path.
+func dropBackupJobs(ctx context.Context, path string) error {
+	db, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.ExecContext(ctx, "DELETE FROM jobs WHERE kind = ?", JobBackup)
+	return err
 }
 
 // QueueBackup queues a backup, unless one is already queued or
