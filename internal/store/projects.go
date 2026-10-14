@@ -16,21 +16,26 @@ type Project struct {
 	SyncIntervalHours int
 	// MaxFileBytes is the largest file a sync keeps in a clone.
 	MaxFileBytes int64
-	CreatedAt    time.Time
+	// DefaultModelID is the model the project uses unless an agent picks
+	// another, or 0 when it has none.
+	DefaultModelID int64
+	CreatedAt      time.Time
 }
 
 // projectColumns is the SELECT list scanProject reads.
-const projectColumns = "id, name, sync_interval_hours, max_file_bytes, created_at"
+const projectColumns = "id, name, sync_interval_hours, max_file_bytes, default_model_id, created_at"
 
 // scanProject reads one row selected with projectColumns.
 func scanProject(row scanner) (Project, error) {
 	var p Project
-	var interval sql.NullInt64 // NULL when the timer is off
+	var interval sql.NullInt64     // NULL when the timer is off
+	var defaultModel sql.NullInt64 // NULL when the project has none
 	var createdAt int64
-	if err := row.Scan(&p.ID, &p.Name, &interval, &p.MaxFileBytes, &createdAt); err != nil {
+	if err := row.Scan(&p.ID, &p.Name, &interval, &p.MaxFileBytes, &defaultModel, &createdAt); err != nil {
 		return Project{}, noRows(err)
 	}
 	p.SyncIntervalHours = int(interval.Int64)
+	p.DefaultModelID = defaultModel.Int64
 	p.CreatedAt = unix(createdAt)
 	return p, nil
 }
@@ -205,8 +210,8 @@ func (s *Store) SetSyncSettings(ctx context.Context, id int64, intervalHours int
 }
 
 // DeleteProject deletes a project and everything in it: memberships,
-// permissions, invites, resources and their jobs go with it (ON DELETE
-// CASCADE). The clones on disk are removed later by the jobs loop.
+// permissions, invites, resources and their jobs, and models go with it
+// (ON DELETE CASCADE). The clones on disk are removed later by the jobs loop.
 func (s *Store) DeleteProject(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
