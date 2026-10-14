@@ -101,7 +101,7 @@ func (s *server) createReset(w http.ResponseWriter, r *http.Request) {
 		Target    store.User
 		Link      string
 		ExpiresAt time.Time
-	}{&owner, target, linkBase(r) + resetPath(token), expires.UTC()})
+	}{&owner, target, linkBase(r) + ResetPath(token), expires.UTC()})
 }
 
 // resetPage is the data for reset.html.
@@ -248,7 +248,8 @@ func (s *server) changePassword(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-// resetPath is the path of a password reset link.
-func resetPath(token string) string {
+// ResetPath is the path of a password reset link. The reset-link command
+// prints it too.
+func ResetPath(token string) string {
 	return "/reset/" + token
 }

@@ -26,6 +26,16 @@ On first start, open http://localhost:8080/setup to create the owner account.
 | `REPO_SPEAKS_ADDR` | `:8080` | Address the server listens on |
 | `REPO_SPEAKS_DATA_DIR` | `data` | Folder for the database and repository clones |
 
+### Forgotten passwords
+
+The owner makes reset links for other accounts on the Accounts page. If the owner forgets their own password, run this on the server, with the same `REPO_SPEAKS_DATA_DIR`:
+
+```sh
+repo-speaks reset-link <username>   # in development: go run . reset-link <username>
+```
+
+It prints a path such as `/reset/...`. Put the server's address in front of it and open it in a browser. The link works once, stops after 24 hours, and ends every session of the account. The server can keep running.
+
 ### Adding repositories
 
 A builder adds a GitHub repository on the project page, as `owner/repo` or its GitHub address, with an optional branch. The server clones the latest commit when the repository is added, when someone presses "Sync now", and on the project's timer (every 6 hours by default). Repositories over 1 GB are refused, files over the project's limit (5 MB by default) are left out, and submodules are not cloned. Behind a proxy, git uses the server's `HTTPS_PROXY` and `NO_PROXY` settings.

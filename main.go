@@ -25,8 +25,23 @@ import (
 	"github.com/urtuba/repo-speaks/internal/web"
 )
 
+// usage lists the commands. With no command, the server starts.
+const usage = `usage:
+  repo-speaks                        start the server
+  repo-speaks reset-link <username>  print a password reset link`
+
 func main() {
-	if err := run(context.Background(), os.Getenv, os.Stderr); err != nil {
+	ctx := context.Background()
+	var err error
+	switch args := os.Args[1:]; {
+	case len(args) == 0:
+		err = run(ctx, os.Getenv, os.Stderr)
+	case len(args) == 2 && args[0] == "reset-link":
+		err = resetLink(ctx, os.Getenv, args[1], os.Stdout, time.Now())
+	default:
+		err = errors.New(usage)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
