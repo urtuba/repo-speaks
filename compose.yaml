@@ -1,0 +1,34 @@
+# Repo Speaks with Docker Compose.
+#
+#   docker compose up -d
+#
+# Then open http://localhost:8080/setup to create the owner account.
+# All data lives in the repo-speaks-data volume, mounted at /data.
+
+services:
+  repo-speaks:
+    build: .
+    image: repo-speaks
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - repo-speaks-data:/data
+      # Backups to a folder on another disk, such as an external disk or
+      # a NAS share. The folder must be writable by user ID 10001.
+      # - /mnt/backups/repo-speaks:/backups
+    # Backups are off until a target and a passphrase are set. Put the
+    # secret values in a .env file next to this file, readable by you
+    # only, and keep the passphrase somewhere safe outside the server.
+    # environment:
+    #   REPO_SPEAKS_BACKUP_DIR: /backups
+    #   REPO_SPEAKS_BACKUP_S3_ENDPOINT: https://s3.eu-central-1.amazonaws.com
+    #   REPO_SPEAKS_BACKUP_S3_BUCKET: my-backups
+    #   REPO_SPEAKS_BACKUP_S3_REGION: eu-central-1
+    #   REPO_SPEAKS_BACKUP_S3_PREFIX: repo-speaks
+    #   REPO_SPEAKS_BACKUP_S3_ACCESS_KEY_ID: ${REPO_SPEAKS_BACKUP_S3_ACCESS_KEY_ID}
+    #   REPO_SPEAKS_BACKUP_S3_SECRET_ACCESS_KEY: ${REPO_SPEAKS_BACKUP_S3_SECRET_ACCESS_KEY}
+    #   REPO_SPEAKS_BACKUP_PASSPHRASE: ${REPO_SPEAKS_BACKUP_PASSPHRASE}
+
+volumes:
+  repo-speaks-data:

@@ -1,0 +1,11 @@
+# Only the source goes into the build. Secrets and local data stay out.
+.git
+.env
+*.local.yaml
+/data/
+/bin/
+*.test
+*.out
+.idea/
+.vscode/
+.DS_Store
