@@ -276,7 +276,8 @@ func (s *server) testModel(w http.ResponseWriter, r *http.Request) {
 }
 
 // deleteModel removes a model from the project. The project's default
-// model cannot go: another one must be chosen first.
+// model cannot go, nor a model an agent uses: another one must be
+// chosen first.
 func (s *server) deleteModel(w http.ResponseWriter, r *http.Request) {
 	p, m, ok := s.openModel(w, r)
 	if !ok {
@@ -286,6 +287,16 @@ func (s *server) deleteModel(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, store.ErrModelIsDefault) {
 		page := newSettingsPage(r, p)
 		page.ModelError = "Not deleted: " + m.Name + " is the default model. Choose another default model first."
+		s.renderSettings(w, r, http.StatusConflict, page)
+		return
+	}
+	if inUse, ok := errors.AsType[*store.ModelInUseError](err); ok {
+		page := newSettingsPage(r, p)
+		if len(inUse.Agents) == 1 {
+			page.ModelError = "Not deleted: the agent " + inUse.Agents[0] + " uses " + m.Name + ". Give it another model first."
+		} else {
+			page.ModelError = "Not deleted: the agents " + nameList(inUse.Agents) + " use " + m.Name + ". Give them another model first."
+		}
 		s.renderSettings(w, r, http.StatusConflict, page)
 		return
 	}

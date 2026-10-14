@@ -359,3 +359,11 @@ func (s *server) deleteAgent(w http.ResponseWriter, r *http.Request) {
 func agentPath(projectID, agentID int64) string {
 	return projectPath(projectID) + "/agents/" + strconv.FormatInt(agentID, 10)
 }
+
+// nameList joins names for a sentence: "A", "A and B", "A, B and C".
+func nameList(names []string) string {
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+}

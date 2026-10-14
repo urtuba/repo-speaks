@@ -492,3 +492,51 @@ func TestDeleteAgent(t *testing.T) {
 		t.Errorf("second delete: status = %d, want 404", rec.Code)
 	}
 }
+
+func TestDeleteModelUsedByAgents(t *testing.T) {
+	ctx := context.Background()
+	app := newAgentApp(t)
+	ada := app.login("ada")
+	del := modelPath(app.project.ID, app.model.ID) + "/delete"
+	use := func(name string) store.Agent {
+		a, err := app.store.AddAgent(ctx, app.project.ID, store.AgentChat, store.AgentSettings{
+			Name: name, ModelID: app.model.ID, RateLimitPerHour: 20, AllResources: true,
+		}, app.clock.now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a
+	}
+
+	triage := use("Triage")
+	rec := app.post(del, nil, ada)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Not deleted: the agent Triage uses Fast. Give it another model first.") {
+		t.Errorf("body does not name the agent:\n%s", rec.Body)
+	}
+	sorter, archive := use("Sorter"), use("Archive")
+	rec = app.post(del, nil, ada)
+	if rec.Code != http.StatusConflict ||
+		!strings.Contains(rec.Body.String(), "Not deleted: the agents Archive, Sorter and Triage use Fast. Give them another model first.") {
+		t.Errorf("status = %d, body does not name the agents:\n%s", rec.Code, rec.Body)
+	}
+	if _, err := app.store.Model(ctx, app.project.ID, app.model.ID); err != nil {
+		t.Fatalf("the model is gone: %v", err)
+	}
+
+	// Once no agent uses it, the model can go.
+	for _, a := range []store.Agent{sorter, archive} {
+		if err := app.store.DeleteAgent(ctx, app.project.ID, a.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page := agentPath(app.project.ID, triage.ID)
+	if rec := app.post(page, fillAgentForm("Triage"), app.login("bora")); rec.Code != http.StatusSeeOther {
+		t.Fatalf("switch Triage to the default: status = %d", rec.Code)
+	}
+	if rec := app.post(del, nil, ada); rec.Code != http.StatusSeeOther {
+		t.Errorf("delete an unused model: status = %d, want 303", rec.Code)
+	}
+}
