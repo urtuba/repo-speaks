@@ -21,7 +21,7 @@ flowchart TB
     builder["<b>Builder</b><br/>Person<br/>Manages resources and agents"]
     asker["<b>Asker</b><br/>Person<br/>Asks questions about the code"]
     rs["<b>Repo Speaks</b><br/>Software system<br/>Reads your repositories and answers<br/>questions on behalf of the technical team"]
-    llm["<b>LLM API</b><br/>External system<br/>OpenAI-compatible (assumed)"]
+    llm["<b>LLM API</b><br/>External system<br/>Any OpenAI-compatible host,<br/>such as OpenRouter"]
     gh["<b>GitHub</b><br/>External system<br/>Public repos, or a fine-grained token"]
 
     builder -- "Sends invite links" --> asker
@@ -178,6 +178,8 @@ erDiagram
     users ||--o{ invites : "creates"
     users ||--o{ password_resets : "gets"
     projects ||--o{ resources : "has"
+    projects ||--o{ models : "has"
+    models |o--o| projects : "default of"
     projects ||--o{ agents : "has"
     agents ||--o{ agent_resources : "picks"
     resources ||--o{ agent_resources : "picked by"
@@ -210,6 +212,7 @@ erDiagram
         int chat_retention_days "null = forever; 30, 90, 365"
         int sync_interval_hours "null = off; 1, 6 (default), 24"
         int max_file_bytes "default 5 MB; 1 to 100 MB"
+        int default_model_id FK "null = none; restrict"
         time created_at
     }
     memberships {
@@ -263,6 +266,17 @@ erDiagram
         time last_synced_at
         text last_error
         time created_at
+    }
+    models {
+        int id PK
+        int project_id FK "cascade"
+        text name "unique per project, no case"
+        text base_url "OpenAI-compatible API, no trailing slash"
+        text api_key "plain text, write-only; only the llm calls read it"
+        text api_key_hint "last 4 characters"
+        text model_id "the host's ID, checked on save"
+        time created_at
+        time updated_at
     }
     agents {
         int id PK
@@ -326,6 +340,8 @@ erDiagram
 - Session IDs and link tokens are stored only as SHA-256 hashes.
 - `member_permissions` references `permissions`, so the database rejects unknown names.
 - A resource is unique per project, repository and branch; the default branch counts as one branch. A partial unique index allows one open (queued or running) job per resource.
+- A model's name is unique per project. The same model ID may appear twice, with other hosts or keys. Changing a model's base URL clears its key in the same update.
+- The project's default model cannot be deleted. The app refuses first; the foreign key is `ON DELETE RESTRICT` in case a code path forgets. Agents will get an optional model of their own when agents are built.
 
 ## Components of the App
 
@@ -341,7 +357,7 @@ flowchart TB
         auth["<b>auth</b><br/>Passwords, session tokens,<br/>invite links, login throttle"]
         perms["<b>permissions</b><br/>Permissions, presets,<br/>grant rules"]
         agent["<b>agent</b><br/>Chats, the tool loop,<br/>read-only tools, chat clean-up"]
-        llm["<b>llm</b><br/>Talks to the LLM provider<br/>(provider: open)"]
+        llm["<b>llm</b><br/>Calls OpenAI-compatible hosts.<br/>Blocks private addresses"]
         jobs["<b>jobs</b><br/>Claims job rows, runs timers,<br/>hands each job on"]
         sync["<b>sync</b><br/>Clones and refreshes<br/>one resource"]
         store["<b>store</b><br/>SQL access and migrations"]
@@ -358,6 +374,7 @@ flowchart TB
     web -- "Checks what a member may do" --> perms
     web -- "Sends questions, streams answers" --> agent
     web -- "Reads and writes data, queues jobs" --> store
+    web -- "Checks and tests models" --> llm
     agent -- "Sends prompts and tool results" --> llm
     agent -- "Loads agents, saves messages" --> store
     agent -- "Reads files of the agent's resources" --> files
@@ -373,7 +390,9 @@ flowchart TB
 
 - **Two entry points.** People come in through `web`. Timers and queued work run in `jobs`. `main.go` starts both.
 - **`web` never calls `sync`.** It queues a job row, so the database is the only link between them. A restart loses no work.
-- **Only `store` knows SQL, and only `llm` knows the provider.** Neither uses anything else from the app.
+- **Only `store` knows SQL, and only `llm` talks to LLM hosts.** Neither uses anything else from the app.
+- **`llm` speaks one API:** OpenAI-compatible chat completions with tools, so any host that speaks it works. It lists a host's models, checks a model ID on save, and sends the Test request. Agents will send their chats through it.
+- **`llm` guards the server.** A project admin sets a model's base URL, so the client refuses loopback, private, link-local, multicast and carrier-grade NAT addresses unless the operator allows them. The check runs in the dialer, on the address dialed, so a DNS change cannot get around it. It follows no redirects, ignores proxy settings, and caps time (30 seconds) and reply sizes.
 - **Where trust changes:** file content from a repository reaches the LLM. A file can carry instructions for the agent (prompt injection), so the agent's tools only read, and only inside the agent's resources.
 - Indexing (open) would be one more component between `sync` and `agent`.
 
@@ -389,24 +408,24 @@ internal/
   jobs/              the job loop and timers; hands each job to sync or agent
   sync/              clone and refresh one resource
   agent/             agent settings, chats, the tool loop and its tools, chat clean-up
-  llm/               the connection to the LLM provider
+  llm/               OpenAI-compatible client, base URL check, private address guard
   config/            settings from the environment
 ```
 
-Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
+Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`, `llm`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
 
 ## Known risks
 
 | Risk | Impact | Response |
 | --- | --- | --- |
 | A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; managers can review chats (`chats:view`) |
-| Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM provider; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
+| Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM host; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
 | Cost running away | Agentic search can make many LLM calls for one question | A rate limit per agent; a step limit per question; usage recorded per project |
 | A hostile repository | A repository or a name could try to read server files, reach other hosts, fill the disk or hang the worker | Checked names and an app-built URL; git with a fixed environment, https only, symlinks as plain files, no submodules; a size check before cloning; a timeout that kills git's process group |
-| Tokens at rest | A copy of the data folder or a backup holds every GitHub token in plain text | Tokens are write-only in the UI and kept out of URLs, arguments, logs and saved errors; fine-grained tokens limit each to one repository, read-only; the data folder must be readable by the app only |
+| Tokens and keys at rest | A copy of the data folder or a backup holds every GitHub token and LLM API key in plain text | Tokens and keys are write-only in the UI and kept out of URLs, arguments, logs and errors; fine-grained tokens limit each to one repository, read-only; a model's key is cleared when its URL changes; the data folder must be readable by the app only |
+| A model URL that points inside | A project admin could make the server call internal systems or the cloud metadata address, and read the replies in an error | Private addresses are refused at connect time unless the operator sets `REPO_SPEAKS_ALLOW_PRIVATE_LLM`; no redirects, no proxy; errors show the status and at most 200 characters of the host's message |
 
 ## Open decisions
 
 - Indexing: agentic search or embeddings
-- LLM provider: one SDK or any OpenAI-compatible endpoint
 - How the owner resets their own password

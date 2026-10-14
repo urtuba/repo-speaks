@@ -21,6 +21,8 @@ One meaning per word. Code, UI and docs use these terms.
 | Sync | Bringing a resource up to date with GitHub. |
 | Clone | The copy of a repository's latest commit on the server. Agents read the clone, never GitHub itself. |
 | Token | A GitHub fine-grained personal access token that lets Repo Speaks read one private repository. Once saved, it is never shown; pages show its last 4 characters. |
+| Model | An LLM a project's agents can use: a name, the base URL of an OpenAI-compatible host, an API key and the host's model ID, such as `z-ai/glm-5.3-flash`. Once saved, the key is never shown; pages show its last 4 characters. |
+| Default model | The model a project's agents use unless an agent picks another. Set with `project:edit`. It cannot be deleted while it is the default. |
 | Job | A piece of background work, such as a sync, kept as a row in the database: queued, running, done or failed. |
 | Agent | Instructions, enabled resources and a rate limit, inside one project. A chat agent or an answer agent. |
 | Chat agent | An agent for conversations: many questions and answers in one chat. |
@@ -37,3 +39,4 @@ One meaning per word. Code, UI and docs use these terms.
 | Owner (for a project role) | Admin |
 | Citation | Source |
 | Q&A agent | Answer agent |
+| Provider | Host, for the service a model runs on, such as OpenRouter; model, for the record in a project |

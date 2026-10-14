@@ -25,6 +25,7 @@ On first start, open http://localhost:8080/setup to create the owner account.
 | --- | --- | --- |
 | `REPO_SPEAKS_ADDR` | `:8080` | Address the server listens on |
 | `REPO_SPEAKS_DATA_DIR` | `data` | Folder for the database and repository clones |
+| `REPO_SPEAKS_ALLOW_PRIVATE_LLM` | off | `true` lets models use hosts on private addresses, such as a local Ollama. See [Local models](#local-models-and-private-addresses) |
 
 ### Forgotten passwords
 
@@ -41,6 +42,29 @@ It prints a path such as `/reset/...`. Put the server's address in front of it a
 A builder adds a GitHub repository on the project page, as `owner/repo` or its GitHub address, with an optional branch. The server clones the latest commit when the repository is added, when someone presses "Sync now", and on the project's timer (every 6 hours by default). Repositories over 1 GB are refused, files over the project's limit (5 MB by default) are left out, and submodules are not cloned. Behind a proxy, git uses the server's `HTTPS_PROXY` and `NO_PROXY` settings.
 
 A private repository needs a token. On GitHub, go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, and generate a new token. Pick the repository's owner, choose "Only select repositories" with that one repository, and set the repository permission "Contents" to "Read-only". Paste the token into the Token field. Repo Speaks never shows it again and sends it only to GitHub, but it stores it in plain text: anyone with a copy of the data folder or a backup has it. Keep the data folder readable by the app's user only.
+
+### Adding a model
+
+Agents need an LLM with tool use. Any host with an OpenAI-compatible API works. OpenRouter is the default, because one key reaches many models.
+
+1. On openrouter.ai, create an API key. A credit limit on the key caps what the server can spend.
+2. In Repo Speaks, open the project's Settings. Admins (`project:edit`) see the Models section.
+3. Enter a name, such as "Fast", and the model ID as OpenRouter shows it, such as `z-ai/glm-5.3-flash`. Keep the base URL `https://openrouter.ai/api/v1`, and paste the key.
+4. Press Add model, then Test.
+
+Saving asks the host for its model list and refuses an unknown model ID. OpenRouter also says which models support tool use, so models without it are refused. Other hosts do not say: there, the Test button is the check. It sends one short request with one tool and passes when the model calls the tool.
+
+Each model has its own key. Repo Speaks never shows it again, only its last 4 characters. Changing a model's base URL clears its key, so a key never goes to a host it was not entered for. Keys are stored in plain text, like GitHub tokens: anyone with a copy of the data folder or a backup has them.
+
+Pick the project's default model under the list. The default model cannot be deleted; choose another one first.
+
+### Local models and private addresses
+
+By default, the server refuses to call LLM hosts on private addresses: loopback (`localhost`), private networks, link-local addresses and carrier-grade NAT. A project admin sets a model's base URL, and may not run the server. Without this check, the URL could point at internal systems or at the cloud metadata address `169.254.169.254`, and the server would call them. The check runs each time the server connects, so a DNS change cannot get around it.
+
+To use a model on your own network, such as Ollama, set `REPO_SPEAKS_ALLOW_PRIVATE_LLM=true` and restart. Then use a base URL such as `http://localhost:11434/v1`. Do this only when you trust every project admin. There is no switch in the UI.
+
+The LLM client ignores `HTTPS_PROXY` and `NO_PROXY`. It connects to the host itself, so the private address check sees the real address. A server that can reach the internet only through a proxy cannot reach a model host.
 
 ### Behind a reverse proxy
 
