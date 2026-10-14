@@ -26,6 +26,7 @@ On first start, open http://localhost:8080/setup to create the owner account.
 | `REPO_SPEAKS_ADDR` | `:8080` | Address the server listens on |
 | `REPO_SPEAKS_DATA_DIR` | `data` | Folder for the database and repository clones |
 | `REPO_SPEAKS_ALLOW_PRIVATE_LLM` | off | `true` lets models use hosts on private addresses, such as a local Ollama. See [Local models](#local-models-and-private-addresses) |
+| `REPO_SPEAKS_BACKUP_...` | off | Where backups go, and their passphrase. See [Backups](#backups) |
 
 ### Forgotten passwords
 
@@ -41,7 +42,7 @@ It prints a path such as `/reset/...`. Put the server's address in front of it a
 
 A builder adds a GitHub repository on the project page, as `owner/repo` or its GitHub address, with an optional branch. The server clones the latest commit when the repository is added, when someone presses "Sync now", and on the project's timer (every 6 hours by default). Repositories over 1 GB are refused, files over the project's limit (5 MB by default) are left out, and submodules are not cloned. Behind a proxy, git uses the server's `HTTPS_PROXY` and `NO_PROXY` settings.
 
-A private repository needs a token. On GitHub, go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, and generate a new token. Pick the repository's owner, choose "Only select repositories" with that one repository, and set the repository permission "Contents" to "Read-only". Paste the token into the Token field. Repo Speaks never shows it again and sends it only to GitHub, but it stores it in plain text: anyone with a copy of the data folder or a backup has it. Keep the data folder readable by the app's user only.
+A private repository needs a token. On GitHub, go to Settings, Developer settings, Personal access tokens, Fine-grained tokens, and generate a new token. Pick the repository's owner, choose "Only select repositories" with that one repository, and set the repository permission "Contents" to "Read-only". Paste the token into the Token field. Repo Speaks never shows it again and sends it only to GitHub, but it stores it in plain text: anyone with a copy of the data folder, or with a backup and its passphrase, has it. Keep the data folder readable by the app's user only.
 
 ### Adding a model
 
@@ -54,7 +55,7 @@ Agents need an LLM with tool use. Any host with an OpenAI-compatible API works. 
 
 Saving asks the host for its model list and refuses an unknown model ID. OpenRouter also says which models support tool use, so models without it are refused. Other hosts do not say: there, the Test button is the check. It sends one short request with one tool and passes when the model calls the tool.
 
-Each model has its own key. Repo Speaks never shows it again, only its last 4 characters. Changing a model's base URL clears its key, so a key never goes to a host it was not entered for. Keys are stored in plain text, like GitHub tokens: anyone with a copy of the data folder or a backup has them.
+Each model has its own key. Repo Speaks never shows it again, only its last 4 characters. Changing a model's base URL clears its key, so a key never goes to a host it was not entered for. Keys are stored in plain text, like GitHub tokens: anyone with a copy of the data folder, or with a backup and its passphrase, has them.
 
 Pick the project's default model under the list. The default model cannot be deleted; choose another one first.
 
@@ -96,6 +97,66 @@ How the agent works:
 **Who reads a chat.** The member who started it, and members with `chats:view` (managers, admins and the owner). They find every chat on the All chats page. Each chat page says so. Chats stay when the agent or the account is deleted, and then show "deleted agent" or "deleted account".
 
 **Rate limit.** A member who asked an agent as many questions as its rate limit allows in the last hour sees when they can ask again.
+
+### Backups
+
+A backup holds the database: accounts, projects, members, agents, chats, models with their API keys, and repository tokens. The repository clones are left out, since a sync rebuilds them. Each backup is one file, encrypted with a passphrase in the OpenPGP format, such as `repo-speaks-20261014T031500Z-schema0008.db.gpg`. The time is UTC, and the schema number says which version wrote it.
+
+Backups go to a mounted folder, to S3-compatible storage, or to both. Set them in the server's environment and restart:
+
+| Variable | Meaning |
+| --- | --- |
+| `REPO_SPEAKS_BACKUP_DIR` | A mounted folder, such as an external disk or a NAS share. It may not be inside the data folder. The app never creates it, so an unmounted disk fails the backup instead of filling the local disk |
+| `REPO_SPEAKS_BACKUP_S3_ENDPOINT` | The storage address with `https://` or `http://`, such as `https://s3.eu-central-1.amazonaws.com`, `https://<account>.r2.cloudflarestorage.com` or `http://minio:9000` |
+| `REPO_SPEAKS_BACKUP_S3_BUCKET` | The bucket |
+| `REPO_SPEAKS_BACKUP_S3_REGION` | Optional: the bucket's region, such as `eu-central-1`, or `auto` for Cloudflare R2 |
+| `REPO_SPEAKS_BACKUP_S3_PREFIX` | Optional: a folder in the bucket, such as `repo-speaks` |
+| `REPO_SPEAKS_BACKUP_S3_ACCESS_KEY_ID` | The access key ID |
+| `REPO_SPEAKS_BACKUP_S3_SECRET_ACCESS_KEY` | The secret access key |
+| `REPO_SPEAKS_BACKUP_PASSPHRASE` | Encrypts every backup. At least 16 characters |
+
+With no folder and no S3 storage set, backups are off. The server refuses to start when a target has no passphrase, when the passphrase is shorter than 16 characters, when the S3 settings are half set, or when the folder is inside the data folder. The settings live in the environment and never in the database, so a backup never holds the keys to its own storage. Give the S3 key the right to write to the bucket, and nothing more.
+
+> **Keep the passphrase safe, outside the server**, such as in a password manager. Without it, nobody can open a backup. A new passphrase applies to new backups only; older ones still need the old one.
+
+**Making a backup.** The owner presses "Back up now" on the Backups page. The page lists the recent backups with their size, targets and result. Or run the command on the server, with the server's environment:
+
+```sh
+repo-speaks backup     # in development: go run . backup
+```
+
+It prints where the backup went, and works while the server runs. The app has no timer for backups, so let cron run the command. For a backup every night at 03:15 with Docker Compose:
+
+```cron
+15 3 * * * cd /srv/repo-speaks && docker compose exec -T repo-speaks repo-speaks backup >> /var/log/repo-speaks-backup.log 2>&1
+```
+
+The app never deletes old backups. Use the target's own rules for that: a lifecycle rule on the bucket, or a cleanup job on the disk.
+
+**Restoring with the command.** Stop the server first. Then run, with the server's `REPO_SPEAKS_DATA_DIR` and `REPO_SPEAKS_BACKUP_PASSPHRASE`:
+
+```sh
+repo-speaks restore /mnt/backups/repo-speaks-20261014T031500Z-schema0008.db.gpg
+```
+
+It decrypts the file and runs SQLite's integrity check. It refuses a backup from a newer version of Repo Speaks, and it refuses while the server has the database open. Then it moves the current database aside, to `repo-speaks.db.before-restore-<time>` in the data folder, and puts the backup in its place. Start the server again. A backup from an older version is brought up to date at start. If an agent says a repository is not synced, press Sync now on it.
+
+**Restoring by hand.** Any machine with `gpg` and `sqlite3` opens a backup, without Repo Speaks:
+
+```sh
+gpg --decrypt repo-speaks-20261014T031500Z-schema0008.db.gpg > repo-speaks.db
+sqlite3 repo-speaks.db "PRAGMA integrity_check;"   # prints ok
+```
+
+Stop the server. Move `repo-speaks.db` out of the data folder, with `repo-speaks.db-wal` and `repo-speaks.db-shm` if they exist. Put the new `repo-speaks.db` in, owned by the app's user and readable by it only (`chmod 600`). Start the server.
+
+### Upgrading
+
+Repo Speaks keeps all its data in one folder: `REPO_SPEAKS_DATA_DIR`, or `/data` in Docker. To upgrade, make a backup, stop the server, replace the binary or the image, and start it again.
+
+When a new version changes the database's schema, it first writes a copy of the database to `upgrades/` in the data folder, such as `repo-speaks-before-0009-20261014T120000Z.db`. The newest 3 copies stay. A copy lets you roll an upgrade back, but it is not a backup: it is not encrypted, and it sits on the same disk as the data.
+
+Schema changes only go forward. An older version refuses to start on a database that a newer version wrote, and says which version to run. To roll back anyway, stop the server and put the old version back. Then replace `repo-speaks.db` with the copy from `upgrades/`, and remove `repo-speaks.db-wal` and `repo-speaks.db-shm` if they exist. Everything written after the upgrade is lost.
 
 ### Not built yet
 

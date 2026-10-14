@@ -23,7 +23,10 @@ One meaning per word. Code, UI and docs use these terms.
 | Token | A GitHub fine-grained personal access token that lets Repo Speaks read one private repository. Once saved, it is never shown; pages show its last 4 characters. |
 | Model | An LLM a project's agents can use: a name, the base URL of an OpenAI-compatible host, an API key and the host's model ID, such as `z-ai/glm-5.3-flash`. Once saved, the key is never shown; pages show its last 4 characters. |
 | Default model | The model a project's agents use unless an agent picks another. Set with `project:edit`. It cannot be deleted while it is the default. |
-| Job | A piece of background work, such as a sync, kept as a row in the database: queued, running, done or failed. |
+| Job | A piece of background work, such as a sync or a backup, kept as a row in the database: queued, running, done or failed. |
+| Backup | An encrypted copy of the database, sent to the backup targets. It holds every key and token, so it needs the passphrase to open. Clones are left out. |
+| Backup target | A place backups go: a mounted folder, S3-compatible storage, or both. Set in the server's environment. |
+| Upgrade copy | A plain copy of the database that the server keeps in the data folder before a schema change, for rolling the upgrade back. Not a backup. |
 | Agent | Instructions, the resources it reads, an optional model and a rate limit, inside one project. A chat agent or an answer agent. Every member sees its name, kind and description; only `agents:edit` sees its instructions. |
 | Chat agent | An agent for conversations: many questions and answers in one chat. |
 | Answer agent | An agent that takes one question and gives one answer, in the format its instructions set. No follow-ups. |

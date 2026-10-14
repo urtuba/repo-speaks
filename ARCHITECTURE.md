@@ -23,12 +23,14 @@ flowchart TB
     rs["<b>Repo Speaks</b><br/>Software system<br/>Reads your repositories and answers<br/>questions on behalf of the technical team"]
     llm["<b>LLM API</b><br/>External system<br/>Any OpenAI-compatible host,<br/>such as OpenRouter"]
     gh["<b>GitHub</b><br/>External system<br/>Public repos, or a fine-grained token"]
+    bk["<b>Backup storage</b><br/>External system, optional<br/>A mounted folder or S3-compatible storage"]
 
     builder -- "Sends invite links" --> asker
     builder -- "Creates projects, manages resources and agents" --> rs
     asker -- "Asks questions" --> rs
     rs -- "Sends questions and code context" --> llm
     rs -- "Fetches source code" --> gh
+    rs -- "Sends encrypted backups" --> bk
 ```
 
 ## Containers
@@ -41,11 +43,12 @@ flowchart TB
     subgraph rs ["Repo Speaks"]
         app["<b>App</b><br/>Go, one process<br/>Serves the UI (server-rendered, htmx),<br/>runs agents and sync workers"]
         db[("<b>Database</b><br/>SQLite file in /data<br/>Accounts, projects, members,<br/>agents, jobs, chats")]
-        files[("<b>File storage</b><br/>Files on disk under /data<br/>Repository clones")]
+        files[("<b>File storage</b><br/>Files on disk under /data<br/>Repository clones, upgrade copies")]
     end
 
     llm["<b>LLM API</b><br/>External system"]
     gh["<b>GitHub</b><br/>External system"]
+    bk["<b>Backup storage</b><br/>External system, optional"]
 
     builder -- "Manages projects (HTTPS)" --> app
     asker -- "Asks questions, reads answers (HTTPS)" --> app
@@ -53,12 +56,15 @@ flowchart TB
     app -- "Clones and reads repositories" --> files
     app -- "Sends questions and code context (HTTPS)" --> llm
     app -- "Fetches source code (HTTPS)" --> gh
+    app -- "Writes encrypted backups (file or HTTPS)" --> bk
 ```
 
 - **One process.** The web UI, the agents and the sync workers run in one Go binary; sync workers and answers are goroutines.
 - **Jobs are database rows**, so a restart does not lose a sync in progress. There is no Redis.
 - **SQLite** is the database: a file in `/data`, used from inside the Go process through a pure-Go driver.
-- **One data folder** (`/data`) holds the database and the clones (`/data/repos/<project>/<resource>`). One volume to mount, one folder to back up.
+- **One data folder** (`/data`) holds the database, the clones (`/data/repos/<project>/<resource>`) and the copies made before a schema change (`/data/upgrades`). One volume to mount.
+- **Backups are optional and on demand.** The owner presses "Back up now", or cron runs `repo-speaks backup`. A backup is the database only, copied with `VACUUM INTO`, encrypted with a passphrase (OpenPGP), and sent to a mounted folder, S3-compatible storage, or both. Clones are left out; a sync rebuilds them. The targets and the passphrase are environment settings, so the storage keys never sit in the database or in a backup.
+- **Upgrades keep a copy.** Before a schema change, the app writes a copy of the database to `/data/upgrades` and keeps the newest 3. Schema changes only go forward, and an older version refuses a newer database.
 - **Clone protection:** the repository size is checked before cloning (1 GB at most), only the latest commit is fetched, and files over a per-project limit (default 5 MB) are deleted from the clone.
 
 ## Main flow: an asker asks a question
@@ -177,6 +183,35 @@ sequenceDiagram
 - **Checked again on use.** A manager who lost their rights, or left, has no working links.
 - **"Mark used" only succeeds once** (`UPDATE ... WHERE used_at IS NULL`). Two people opening the same link at once cannot both join.
 - An invitee who is already a member sees "You are already a member", and the link stays unused.
+
+## Backup flow: the owner presses "Back up now"
+
+```mermaid
+sequenceDiagram
+    actor Owner
+    participant Web as App: web handlers
+    participant Worker as App: jobs worker
+    participant DB as Database
+    participant Data as Data folder
+    participant Target as Backup storage
+
+    Owner->>Web: Press "Back up now"
+    Web->>DB: Check the owner, queue a backup job (one open at most)
+    Web-->>Owner: "Backup queued"; the list reloads every 5 seconds
+    Worker->>DB: Claim the job
+    Worker->>DB: VACUUM INTO a temporary file in the data folder (0600)
+    Worker->>Data: Encrypt it into a second temporary file, then remove the plain copy
+    loop Each target
+        Worker->>Target: Folder: write a temporary name, then rename. S3: upload
+    end
+    Worker->>Data: Remove the encrypted temporary file
+    Worker->>DB: Record the backup: name, size, targets, error. Mark the job done or failed
+```
+
+- **The command does the same.** `repo-speaks backup` runs the same steps without a job, while the server runs, so cron can call it.
+- **A failed target does not stop the others.** The record names each failed one. A failed backup is not tried again; the owner sees the error and can press the button again.
+- **Errors never show a secret.** The passphrase and the S3 keys are removed from every error before it is saved or logged.
+- **Restore runs with the server stopped.** `repo-speaks restore <file>` refuses while the database is open. It decrypts the backup next to the database, runs the integrity check, refuses a newer schema, then moves the current database aside and puts the backup in place.
 
 ## Entity relationships
 
@@ -348,14 +383,23 @@ erDiagram
     }
     jobs {
         int id PK
-        text kind "sync_resource"
-        int resource_id FK "cascade; null for project jobs"
+        text kind "sync_resource, backup"
+        int resource_id FK "cascade; null for a backup"
         text status "queued, running, done, failed"
         int attempts "3 at most"
         time run_after
         time locked_at "claimed with UPDATE ... RETURNING"
         text error
         time created_at "done and failed rows go after 7 days"
+    }
+    backups {
+        int id PK
+        text name "the encrypted file's name"
+        int size "bytes; 0 when no target got it"
+        text targets "folder and S3 without secrets"
+        text error "empty when every target got it"
+        time started_at
+        time finished_at
     }
 ```
 
@@ -365,7 +409,8 @@ erDiagram
 - An answer agent's chat holds exactly one question and one answer. The app refuses a second question.
 - Session IDs and link tokens are stored only as SHA-256 hashes.
 - `member_permissions` references `permissions`, so the database rejects unknown names.
-- A resource is unique per project, repository and branch; the default branch counts as one branch. A partial unique index allows one open (queued or running) job per resource.
+- A resource is unique per project, repository and branch; the default branch counts as one branch. A partial unique index allows one open (queued or running) job per resource. A second one allows one open job per kind among jobs without a resource, so there is one open backup at most.
+- `backups` stands alone: a record of each backup this server made, for the Backups page. The backup settings are not in the database.
 - A model's name is unique per project. The same model ID may appear twice, with other hosts or keys. Changing a model's base URL clears its key in the same update.
 - The project's default model cannot be deleted. The app refuses first; the foreign key is `ON DELETE RESTRICT` in case a code path forgets.
 - An agent may pick a model of its own; otherwise it uses the project's default. With neither, it is "not ready". A model an agent uses cannot be deleted either. The app refuses first and names the agents. The foreign key is `NO ACTION`, which SQLite checks at the end of the statement, so deleting a project still deletes its agents and models in any order.
@@ -391,13 +436,15 @@ flowchart TB
         llm["<b>llm</b><br/>Calls OpenAI-compatible hosts.<br/>Blocks private addresses"]
         jobs["<b>jobs</b><br/>Claims job rows, runs timers,<br/>hands each job on"]
         sync["<b>sync</b><br/>Clones and refreshes<br/>one resource"]
-        store["<b>store</b><br/>SQL access and migrations"]
+        backup["<b>backup</b><br/>Copies, encrypts and sends<br/>the database; restores it"]
+        store["<b>store</b><br/>SQL access, migrations,<br/>copies before upgrades"]
     end
 
     db[("<b>Database</b><br/>SQLite file")]
     files[("<b>File storage</b><br/>Repository clones")]
     llmapi["<b>LLM API</b><br/>External system"]
     gh["<b>GitHub</b><br/>External system"]
+    bk["<b>Backup storage</b><br/>External system, optional"]
 
     builder -- "Manages projects (HTTPS)" --> web
     asker -- "Asks questions (HTTPS)" --> web
@@ -411,6 +458,9 @@ flowchart TB
     agent -- "Reads files of the agent's resources" --> files
     jobs -- "Claims jobs, queues timed ones" --> store
     jobs -- "Runs sync jobs" --> sync
+    jobs -- "Runs backup jobs" --> backup
+    backup -- "Copies the database, records backups" --> store
+    backup -- "Encrypted files" --> bk
     sync -- "Saves sync results" --> store
     sync -- "Fetches code (HTTPS)" --> gh
     sync -- "Writes clones" --> files
@@ -425,11 +475,13 @@ flowchart TB
 - **`llm` guards the server.** A project admin sets a model's base URL, so the client refuses loopback, private, link-local, multicast and carrier-grade NAT addresses unless the operator allows them. The check runs in the dialer, on the address dialed, so a DNS change cannot get around it. It follows no redirects, ignores proxy settings, and caps time (30 seconds, or 2 minutes for a call of an answer) and reply sizes.
 - **Where trust changes:** file content from a repository reaches the LLM. A file can carry instructions for the agent (prompt injection), so the agent's tools only read, and only inside the agent's resources. Every file access goes through an `os.Root` on the clone, so a symlink or a `..` cannot leave it. The model's answer is untrusted too: it renders without raw HTML, and its links show as text.
 - **`agent` takes one thing from `sync`:** `ClonePath`, where a clone lives.
+- **`backup` never sees a page.** The web handler queues a backup job and reads the records, like a sync. The page shows the targets without secrets.
 
 ## Code map
 
 ```
-main.go              read config, wire packages, start the web server, the jobs loop and the agents
+main.go              read config, wire packages, start the web server, the jobs loop and the agents;
+                     the reset-link, backup and restore commands
 internal/
   web/               HTTP handlers, middleware, templates, static files (embedded)
   auth/              passwords, sessions, invite links, login throttle
@@ -437,12 +489,13 @@ internal/
   store/             SQLite access and migrations
   jobs/              the job loop and timers; hands each job to sync
   sync/              clone and refresh one resource
+  backup/            encrypted backups to a folder or S3, and restore
   agent/             the answer loop, its read-only tools, sources, rate limit
   llm/               OpenAI-compatible client, base URL check, private address guard
   config/            settings from the environment
 ```
 
-Built so far: every package above. Chat retention and attachments come later. Dependencies point one way: `web` and `jobs` use the others; `agent` uses `store`, `llm` and the clone path of `sync`; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
+Built so far: every package above. Chat retention and attachments come later. Dependencies point one way: `web` and `jobs` use the others; `agent` uses `store`, `llm` and the clone path of `sync`; `store` and `llm` use nothing from the app. `jobs` takes the syncer and the backup service as small interfaces, and `main.go` passes it the real ones. `backup` uses `store` and `config`.
 
 ## Known risks
 
@@ -453,7 +506,8 @@ Built so far: every package above. Chat retention and attachments come later. De
 | Prompt injection in the answer | A file tells the model to write a link that sends chat text to another site, or to show its instructions | The base rules say to ignore instructions in files and not to repeat the instructions; answers render without raw HTML, links show as text and images never load; only the app builds clickable source links. The model can still be misled, so the rules lower the risk but do not remove it |
 | Cost running away | Agentic search can make many LLM calls for one question | A rate limit per member on each agent; 30 steps and 5 minutes per question; each answer records its model and tokens (totals come later) |
 | A hostile repository | A repository or a name could try to read server files, reach other hosts, fill the disk or hang the worker | Checked names and an app-built URL; git with a fixed environment, https only, symlinks as plain files, no submodules; a size check before cloning; a timeout that kills git's process group |
-| Tokens and keys at rest | A copy of the data folder or a backup holds every GitHub token and LLM API key in plain text | Tokens and keys are write-only in the UI and kept out of URLs, arguments, logs and errors; fine-grained tokens limit each to one repository, read-only; a model's key is cleared when its URL changes; the data folder must be readable by the app only |
+| Tokens and keys at rest | A copy of the data folder holds every GitHub token and LLM API key in plain text, and so do the copies made before upgrades | Backups are encrypted with a passphrase (OpenPGP, AES-256), and the storage keys stay in the environment, out of every backup; tokens and keys are write-only in the UI and kept out of URLs, arguments, logs and errors; fine-grained tokens limit each to one repository, read-only; a model's key is cleared when its URL changes; the data folder and every copy are readable by the app only (0600) |
+| Losing data | A disk dies, or an upgrade goes wrong | Optional encrypted backups off the disk, by button or by cron, to a folder or S3; a copy before each schema change, the newest 3 kept; an older version refuses a newer database; restore keeps the old database aside. A lost passphrase means lost backups, and the docs say so |
 | A model URL that points inside | A project admin could make the server call internal systems or the cloud metadata address, and read the replies in an error | Private addresses are refused at connect time unless the operator sets `REPO_SPEAKS_ALLOW_PRIVATE_LLM`; no redirects, no proxy; errors show the status and at most 200 characters of the host's message |
 
 ## Open decisions
