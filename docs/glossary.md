@@ -24,9 +24,11 @@ One meaning per word. Code, UI and docs use these terms.
 | Model | An LLM a project's agents can use: a name, the base URL of an OpenAI-compatible host, an API key and the host's model ID, such as `z-ai/glm-5.3-flash`. Once saved, the key is never shown; pages show its last 4 characters. |
 | Default model | The model a project's agents use unless an agent picks another. Set with `project:edit`. It cannot be deleted while it is the default. |
 | Job | A piece of background work, such as a sync, kept as a row in the database: queued, running, done or failed. |
-| Agent | Instructions, enabled resources and a rate limit, inside one project. A chat agent or an answer agent. |
+| Agent | Instructions, the resources it reads, an optional model and a rate limit, inside one project. A chat agent or an answer agent. Every member sees its name, kind and description; only `agents:edit` sees its instructions. |
 | Chat agent | An agent for conversations: many questions and answers in one chat. |
 | Answer agent | An agent that takes one question and gives one answer, in the format its instructions set. No follow-ups. |
+| Not ready | An agent with no model of its own, in a project with no default model. It can be saved but cannot answer. |
+| Rate limit | How many questions one member may ask one agent per hour. Set per agent, 20 by default. |
 | Chat | A conversation between one member and one agent. With an answer agent, it holds one question and one answer. The member who started it can always read it; members with `chats:view` can read every chat. |
 | Source | A file or document listed under an answer, so a reader can check it. |
 

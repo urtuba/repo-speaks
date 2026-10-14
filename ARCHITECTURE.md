@@ -181,6 +181,7 @@ erDiagram
     projects ||--o{ models : "has"
     models |o--o| projects : "default of"
     projects ||--o{ agents : "has"
+    models |o--o{ agents : "used by"
     agents ||--o{ agent_resources : "picks"
     resources ||--o{ agent_resources : "picked by"
     permissions ||--o{ member_permissions : "names"
@@ -282,11 +283,13 @@ erDiagram
         int id PK
         int project_id FK "cascade"
         text kind "chat or answer; fixed at creation"
-        text name
+        text name "unique per project, no case"
         text description "every member sees it"
         text prompt "agents:edit only; holds the answer format"
-        bool attachments_on "default false"
         bool all_resources "default true; false = agent_resources"
+        int model_id FK "null = project default; no action"
+        int rate_limit_per_hour "per member; default 20, 1 to 1000"
+        bool attachments_on "comes with chat"
         time created_at
         time updated_at
     }
@@ -341,7 +344,10 @@ erDiagram
 - `member_permissions` references `permissions`, so the database rejects unknown names.
 - A resource is unique per project, repository and branch; the default branch counts as one branch. A partial unique index allows one open (queued or running) job per resource.
 - A model's name is unique per project. The same model ID may appear twice, with other hosts or keys. Changing a model's base URL clears its key in the same update.
-- The project's default model cannot be deleted. The app refuses first; the foreign key is `ON DELETE RESTRICT` in case a code path forgets. Agents will get an optional model of their own when agents are built.
+- The project's default model cannot be deleted. The app refuses first; the foreign key is `ON DELETE RESTRICT` in case a code path forgets.
+- An agent may pick a model of its own; otherwise it uses the project's default. With neither, it is "not ready". A model an agent uses cannot be deleted either. The app refuses first and names the agents. The foreign key is `NO ACTION`, which SQLite checks at the end of the statement, so deleting a project still deletes its agents and models in any order.
+- An agent with `all_resources` off reads only the resources in `agent_resources`. The app adds only resources of the agent's own project. A deleted resource drops out by cascade.
+- The rate limit is stored on the agent. The chat will count questions per member in memory, so a restart will reset the counts.
 
 ## Components of the App
 
@@ -407,12 +413,12 @@ internal/
   store/             SQLite access and migrations
   jobs/              the job loop and timers; hands each job to sync or agent
   sync/              clone and refresh one resource
-  agent/             agent settings, chats, the tool loop and its tools, chat clean-up
+  agent/             chats, the tool loop and its tools, chat clean-up
   llm/               OpenAI-compatible client, base URL check, private address guard
   config/            settings from the environment
 ```
 
-Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`, `llm`. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
+Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`, `llm`. Agent settings live in `store` and `web`; the `agent` package comes with chat. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
 
 ## Known risks
 
@@ -420,7 +426,7 @@ Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`, `
 | --- | --- | --- |
 | A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; managers can review chats (`chats:view`) |
 | Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM host; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
-| Cost running away | Agentic search can make many LLM calls for one question | A rate limit per agent; a step limit per question; usage recorded per project |
+| Cost running away | Agentic search can make many LLM calls for one question | A rate limit per member on each agent; a step limit per question; usage recorded per project |
 | A hostile repository | A repository or a name could try to read server files, reach other hosts, fill the disk or hang the worker | Checked names and an app-built URL; git with a fixed environment, https only, symlinks as plain files, no submodules; a size check before cloning; a timeout that kills git's process group |
 | Tokens and keys at rest | A copy of the data folder or a backup holds every GitHub token and LLM API key in plain text | Tokens and keys are write-only in the UI and kept out of URLs, arguments, logs and errors; fine-grained tokens limit each to one repository, read-only; a model's key is cleared when its URL changes; the data folder must be readable by the app only |
 | A model URL that points inside | A project admin could make the server call internal systems or the cloud metadata address, and read the replies in an error | Private addresses are refused at connect time unless the operator sets `REPO_SPEAKS_ALLOW_PRIVATE_LLM`; no redirects, no proxy; errors show the status and at most 200 characters of the host's message |

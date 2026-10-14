@@ -58,6 +58,21 @@ Each model has its own key. Repo Speaks never shows it again, only its last 4 ch
 
 Pick the project's default model under the list. The default model cannot be deleted; choose another one first.
 
+### Creating an agent
+
+An agent answers questions about a project's repositories. Builders (`agents:edit`) press New agent on the project page.
+
+- **Kind:** a chat agent holds conversations with follow-up questions. An answer agent takes one question and gives one answer in a set format. The kind cannot change later; to switch, create another agent.
+- **Instructions:** what the agent does and how it answers, up to 20000 characters. For an answer agent, describe the format and give an example answer. Only members with `agents:edit` see the instructions.
+- **Description:** up to 300 characters. Every member sees it.
+- **Model:** the project's default model, or one of the project's models.
+- **Repositories:** all of the project's repositories, ones added later too, or only the ones you tick. A repository removed from the project drops out of every agent.
+- **Rate limit:** how many questions one member may ask the agent per hour, from 1 to 1000. The default is 20. Chat is not built yet, so nothing counts questions so far. The chat will count them in memory, and a restart will reset the counts.
+
+An agent with no model of its own, in a project with no default model, is "not ready". It can be saved, but it cannot answer. Every member sees "not ready" next to it. An admin fixes it by adding a model or setting the default model.
+
+A model an agent uses cannot be deleted. Give the agent another model first.
+
 ### Local models and private addresses
 
 By default, the server refuses to call LLM hosts on private addresses: loopback (`localhost`), private networks, link-local addresses and carrier-grade NAT. A project admin sets a model's base URL, and may not run the server. Without this check, the URL could point at internal systems or at the cloud metadata address `169.254.169.254`, and the server would call them. The check runs each time the server connects, so a DNS change cannot get around it.
