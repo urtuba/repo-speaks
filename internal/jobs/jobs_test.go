@@ -49,6 +49,20 @@ func (f *fakeSyncer) calls() int {
 	return len(f.synced)
 }
 
+// fakeBackuper stands in for the backup package.
+type fakeBackuper struct {
+	mu   sync.Mutex
+	runs int
+	err  error
+}
+
+func (f *fakeBackuper) Run(ctx context.Context) (store.Backup, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runs++
+	return store.Backup{}, f.err
+}
+
 // lockedBuffer is a log output that two goroutines may share.
 type lockedBuffer struct {
 	mu  sync.Mutex
@@ -74,6 +88,7 @@ type fixture struct {
 	store    *store.Store
 	db       *sql.DB // the same database, for looking at job rows
 	syncer   *fakeSyncer
+	backups  *fakeBackuper
 	log      *lockedBuffer
 	project  store.Project
 	resource store.Resource
@@ -102,8 +117,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &fixture{store: st, db: db, syncer: &fakeSyncer{}, log: &lockedBuffer{}, project: p, resource: r, now: testNow}
-	f.l = New(st, f.syncer, slog.New(slog.NewTextHandler(f.log, nil)))
+	f := &fixture{store: st, db: db, syncer: &fakeSyncer{}, backups: &fakeBackuper{}, log: &lockedBuffer{}, project: p, resource: r, now: testNow}
+	f.l = New(st, f.syncer, f.backups, slog.New(slog.NewTextHandler(f.log, nil)))
 	f.l.now = func() time.Time { return f.now }
 	return f
 }
@@ -265,6 +280,55 @@ func TestUnknownKindFails(t *testing.T) {
 	}
 	if f.syncer.calls() != 0 {
 		t.Error("an unknown job ran a sync")
+	}
+}
+
+// backupJob is the latest backup job's status, tries and error.
+func (f *fixture) backupJob(t *testing.T) (status string, attempts int, msg string) {
+	t.Helper()
+	var m sql.NullString
+	err := f.db.QueryRow(`
+		SELECT status, attempts, error FROM jobs
+		WHERE kind = ? ORDER BY id DESC LIMIT 1`, store.JobBackup).Scan(&status, &attempts, &m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status, attempts, m.String
+}
+
+func TestBackupJob(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.runNext(t, true) // the resource's first sync
+	for range 2 {
+		if _, err := f.store.QueueBackup(ctx, f.now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f.runNext(t, true)
+	f.runNext(t, false) // pressing twice queued one backup
+	if status, attempts, _ := f.backupJob(t); status != "done" || attempts != 1 || f.backups.runs != 1 {
+		t.Errorf("backup job = %s after %d tries, %d runs; want done once", status, attempts, f.backups.runs)
+	}
+}
+
+func TestFailedBackupIsNotTriedAgain(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	f.runNext(t, true) // the resource's first sync
+	f.backups.err = errors.New("backup failed for folder /backups: the folder is missing")
+	if _, err := f.store.QueueBackup(ctx, f.now); err != nil {
+		t.Fatal(err)
+	}
+	f.runNext(t, true)
+	f.now = f.now.Add(time.Hour)
+	f.runNext(t, false)
+	status, attempts, msg := f.backupJob(t)
+	if status != "failed" || attempts != 1 || msg != f.backups.err.Error() {
+		t.Errorf("backup job = %s after %d tries with %q, want failed once with the error", status, attempts, msg)
+	}
+	if got := f.lastError(t); got != "" {
+		t.Errorf("resource error = %q, want none", got)
 	}
 }
 

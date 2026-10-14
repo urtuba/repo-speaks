@@ -13,12 +13,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/urtuba/repo-speaks/internal/agent"
+	"github.com/urtuba/repo-speaks/internal/backup"
 	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/jobs"
 	"github.com/urtuba/repo-speaks/internal/llm"
@@ -79,6 +81,14 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		return err
 	}
 
+	backups, err := backup.New(st, cfg.DataDir, cfg.Backup)
+	if err != nil {
+		return err
+	}
+	if backups.On() {
+		logger.Info("backups on", "targets", strings.Join(backups.Targets(), ", "))
+	}
+
 	if cfg.AllowPrivateLLM {
 		logger.Warn("models may use hosts on private addresses (REPO_SPEAKS_ALLOW_PRIVATE_LLM)")
 	}
@@ -120,10 +130,10 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	})
-	// The jobs loop stops when ctx ends: a running sync is cut off and
-	// goes back to the queue for the next start.
+	// The jobs loop stops when ctx ends: a running sync or backup is cut
+	// off and goes back to the queue for the next start.
 	g.Go(func() error {
-		return jobs.New(st, syncer, logger).Run(ctx)
+		return jobs.New(st, syncer, backups, logger).Run(ctx)
 	})
 	return g.Wait()
 }

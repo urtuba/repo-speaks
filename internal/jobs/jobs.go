@@ -1,6 +1,7 @@
 // Package jobs runs Repo Speaks' background work. Workers claim job rows
 // from the database and hand each job to the package that knows how to
-// do it. A timer queues the syncs that are due and cleans up.
+// do it: a sync or a backup. A timer queues the syncs that are due and
+// cleans up.
 //
 // The web handlers only add job rows. The database is the only link
 // between them and this loop, so a restart loses no queued work.
@@ -29,6 +30,9 @@ const (
 	// syncTimeout is how long one sync may take.
 	syncTimeout = 10 * time.Minute
 
+	// backupTimeout is how long one backup may take, uploads included.
+	backupTimeout = time.Hour
+
 	// pollInterval is how long a worker waits when no job is due.
 	pollInterval = 2 * time.Second
 
@@ -50,20 +54,28 @@ type Syncer interface {
 	RemoveDeleted(ctx context.Context) error
 }
 
+// Backuper makes one backup and records it. *backup.Service is the real
+// one; tests use a fake.
+type Backuper interface {
+	Run(ctx context.Context) (store.Backup, error)
+}
+
 // Loop runs the workers and the timer.
 type Loop struct {
 	store       *store.Store
 	syncer      Syncer
+	backups     Backuper
 	logger      *slog.Logger
 	now         func() time.Time
 	syncTimeout time.Duration
 }
 
 // New returns the loop. Run starts it.
-func New(st *store.Store, syncer Syncer, logger *slog.Logger) *Loop {
+func New(st *store.Store, syncer Syncer, backups Backuper, logger *slog.Logger) *Loop {
 	return &Loop{
 		store:       st,
 		syncer:      syncer,
+		backups:     backups,
 		logger:      logger,
 		now:         time.Now,
 		syncTimeout: syncTimeout,
@@ -188,6 +200,16 @@ func (l *Loop) do(ctx context.Context, job store.Job) (err error) {
 			return jobError{msg: fmt.Sprintf("the sync took longer than %v and was stopped", l.syncTimeout), permanent: true}
 		}
 		return err
+	case store.JobBackup:
+		ctx, cancel := context.WithTimeout(ctx, backupTimeout)
+		defer cancel()
+		// Every try is a row on the Backups page, so a failed backup is
+		// not tried again. The owner sees why, and can press the button
+		// again.
+		if _, err := l.backups.Run(ctx); err != nil {
+			return jobError{msg: err.Error(), permanent: true}
+		}
+		return nil
 	default:
 		return jobError{msg: fmt.Sprintf("unknown job kind %q", job.Kind), permanent: true}
 	}

@@ -66,7 +66,7 @@ func TestTokenNeverSavedOrLogged(t *testing.T) {
 	}
 
 	var log lockedBuffer
-	loop := jobs.New(f.store, f.s, slog.New(slog.NewTextHandler(&log, nil)))
+	loop := jobs.New(f.store, f.s, nil, slog.New(slog.NewTextHandler(&log, nil)))
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error)
 	go func() { done <- loop.Run(runCtx) }()
