@@ -120,3 +120,30 @@ func TestRecoverPanicsKeepsAbort(t *testing.T) {
 	}()
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 }
+
+// TestLogsHideTokens checks that no log line holds a link's token, for a
+// matched route, a wrong method, a path no route matches, and a panic.
+func TestLogsHideTokens(t *testing.T) {
+	const token = "s3cret-token"
+	var logs bytes.Buffer
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /reset/{token}", func(w http.ResponseWriter, r *http.Request) {})
+	mux.HandleFunc("GET /invites/{token}", func(w http.ResponseWriter, r *http.Request) { panic("boom") })
+	h := middlewares(slog.New(slog.NewTextHandler(&logs, nil)), mux)
+
+	for _, req := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/reset/"+token, nil),
+		httptest.NewRequest(http.MethodPut, "/reset/"+token, nil),
+		httptest.NewRequest(http.MethodGet, "/reset/"+token+"/extra", nil),
+		httptest.NewRequest(http.MethodGet, "/invites/"+token, nil),
+	} {
+		h.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	if strings.Contains(logs.String(), token) {
+		t.Errorf("logs hold the token:\n%s", logs.String())
+	}
+	if !strings.Contains(logs.String(), `route="GET /reset/{token}"`) {
+		t.Errorf("logs do not name the matched route:\n%s", logs.String())
+	}
+}

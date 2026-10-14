@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -34,11 +35,25 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 		next.ServeHTTP(rec, r)
 		logger.Info("request",
 			"method", r.Method,
-			"path", r.URL.Path,
+			"route", logRoute(r),
 			"status", rec.status,
 			"duration", time.Since(start),
 		)
 	})
+}
+
+// logRoute names the request in the log by the route it matched, such
+// as "GET /reset/{token}", not by its path. Reset and invite links carry
+// their token in the path, and a log line must not hand out a working
+// link. A request no route matched logs only the first part of its path.
+// The mux sets r.Pattern on this same request, so it is known once the
+// handler has run.
+func logRoute(r *http.Request) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	first, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	return "/" + first
 }
 
 // statusRecorder remembers the status code a handler wrote.
@@ -70,7 +85,7 @@ func recoverPanics(logger *slog.Logger, next http.Handler) http.Handler {
 			if err == http.ErrAbortHandler {
 				panic(err) // a deliberate abort; net/http handles it quietly
 			}
-			logger.Error("panic", "path", r.URL.Path, "err", err, "stack", string(debug.Stack()))
+			logger.Error("panic", "route", logRoute(r), "err", err, "stack", string(debug.Stack()))
 			// If the handler already wrote a status, this one is ignored.
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}()

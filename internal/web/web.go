@@ -119,7 +119,7 @@ func (s *server) render(w http.ResponseWriter, status int, name string, data any
 
 // serverError logs err and answers 500 without details.
 func (s *server) serverError(w http.ResponseWriter, r *http.Request, err error) {
-	s.logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "err", err)
+	s.logger.Error("request failed", "method", r.Method, "route", logRoute(r), "err", err)
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
