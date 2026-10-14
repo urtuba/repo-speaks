@@ -443,7 +443,8 @@ strong {
 }
 
 input,
-select {
+select,
+textarea {
 	width: 100%;
 	height: var(--control);
 	padding: 0 12px;
@@ -461,15 +462,40 @@ input::placeholder {
 }
 
 input:hover,
-select:hover {
+select:hover,
+textarea:hover {
 	border-color: var(--muted);
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
 	border-color: var(--focus);
 	outline: none;
 	box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* A tall text box, such as an agent's instructions. */
+textarea {
+	height: auto;
+	min-height: 160px;
+	padding: 8px 12px;
+	resize: vertical;
+}
+
+/* A group of choices with a title, such as an agent's repositories. */
+fieldset.field {
+	min-width: 0;
+	margin: 0 0 16px;
+	padding: 0;
+	border: 0;
+}
+
+fieldset.field legend {
+	margin-bottom: 6px;
+	padding: 0;
+	font-size: var(--text-sm);
+	font-weight: 600;
 }
 
 input:user-invalid {
@@ -635,6 +661,12 @@ form.inline {
 	vertical-align: 1px;
 }
 
+.badge.warn {
+	background: var(--danger-bg);
+	border-color: var(--danger-border);
+	color: var(--danger);
+}
+
 .badge.owner {
 	background: var(--primary);
 	border-color: var(--primary);
@@ -764,6 +796,12 @@ form.inline {
 	margin: 2px 0 0;
 	accent-color: var(--primary);
 	box-shadow: none;
+}
+
+/* A choice that belongs to the one above it, such as a repository
+   under "Only the ones ticked below". */
+.checks .pick label {
+	padding-left: 36px;
 }
 
 .check-hint {

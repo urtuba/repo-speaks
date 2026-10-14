@@ -35,6 +35,35 @@
 		{{end}}
 	</section>
 
+	<section class="card" id="agents">
+		<div class="card-head">
+			<h2>Agents</h2>
+			{{if .CanEditAgents}}<a class="button secondary small" href="/projects/{{.Project.ID}}/agents/new">New agent</a>{{end}}
+		</div>
+		{{with .AgentNotice}}<p class="alert success" role="status">{{.}}</p>{{end}}
+		{{if .Agents}}
+		<table class="table">
+			<thead>
+				<tr><th>Name</th><th>Kind</th><th>Description</th><th></th></tr>
+			</thead>
+			<tbody>
+				{{range .Agents}}
+				<tr>
+					<td>{{.Name}}{{if not .Ready}} <span class="badge warn" title="The agent has no model yet, so it cannot answer.">not ready</span>{{end}}</td>
+					<td><span class="badge">{{.Kind}}</span></td>
+					<td>{{with .Description}}{{.}}{{else}}<span class="muted">none</span>{{end}}</td>
+					<td class="actions">
+						{{if $.CanEditAgents}}<a class="button secondary small" href="/projects/{{$.Project.ID}}/agents/{{.ID}}">Edit</a>{{end}}
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+		{{else}}
+		<p class="empty">No agents yet.{{if .CanEditAgents}} Create one with New agent.{{end}}</p>
+		{{end}}
+	</section>
+
 	<section class="card" id="resources">
 		<div class="card-head">
 			<h2>Repositories</h2>

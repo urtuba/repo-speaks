@@ -110,16 +110,18 @@ func (s *server) openProject(w http.ResponseWriter, r *http.Request) (store.Proj
 	return p, perms, true
 }
 
-// project shows one project: the viewer's permissions, the resources
-// (with resources:view), the members (with members:view) and the invite
-// links (with members:edit).
+// project shows one project: the viewer's permissions, the agents, the
+// resources (with resources:view), the members (with members:view) and
+// the invite links (with members:edit).
 func (s *server) project(w http.ResponseWriter, r *http.Request) {
 	p, perms, ok := s.openProject(w, r)
 	if !ok {
 		return
 	}
+	notice := r.URL.Query().Get("notice")
 	s.renderProjectPage(w, r, http.StatusOK, p, perms, projectPage{
-		Notice: resourceNotices[r.URL.Query().Get("notice")],
+		Notice:      resourceNotices[notice],
+		AgentNotice: agentNotices[notice],
 	})
 }
 
@@ -136,6 +138,12 @@ type projectPage struct {
 	Presets       []permissions.Preset // the presets the viewer may invite with
 	Invites       []store.Invite
 	Error         string // shown in the invite section
+
+	// Every member sees the agents, without their prompts. With
+	// agents:edit, the list links to the agent pages.
+	Agents        []store.AgentSummary
+	CanEditAgents bool
+	AgentNotice   string // after an agent action, such as "Agent deleted."
 
 	CanSeeResources bool
 	Resources       resourceList
@@ -165,7 +173,12 @@ func (s *server) renderProjectPage(w http.ResponseWriter, r *http.Request, statu
 	data.CanSeeMembers = perms.Has(permissions.PermMembersView)
 	data.CanInvite = perms.Has(permissions.PermMembersEdit)
 	data.CanSeeResources = perms.Has(permissions.PermResourcesView)
+	data.CanEditAgents = perms.Has(permissions.PermAgentsEdit)
 	var err error
+	if data.Agents, err = s.store.Agents(ctx, p.ID); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
 	if data.CanSeeResources {
 		if data.Resources, err = s.loadResources(r, p.ID, perms.Has(permissions.PermResourcesEdit)); err != nil {
 			s.serverError(w, r, err)

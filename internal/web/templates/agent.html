@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" (or .Agent.Name "New agent")}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}#agents">{{.Project.Name}}</a> /</p>
+			<h1>{{if .IsNew}}New agent{{else}}{{.Agent.Name}}{{end}}</h1>
+		</div>
+		<div class="head-actions">
+			{{if not .IsNew}}<span class="badge">{{.Agent.Kind}}</span>{{end}}
+		</div>
+	</div>
+
+	<section class="card narrow">
+		<div class="card-head">
+			<h2>Agent</h2>
+		</div>
+		{{if eq .Saved "created"}}<p class="alert success" role="status">Agent created.</p>{{end}}
+		{{if eq .Saved "1"}}<p class="alert success" role="status">Saved.</p>{{end}}
+		{{if and (not .IsNew) (not .Agent.Ready)}}<p class="alert" role="alert">Not ready: this agent has no model, and the project has no default model. Pick a model below, or ask an admin to add one or set the project's default model in Settings.</p>{{end}}
+		{{if and .IsNew (not .Models)}}<p class="muted small">The project has no models yet. You can save the agent now. It is not ready until an admin adds a model.</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form method="post" action="/projects/{{.Project.ID}}/agents{{if not .IsNew}}/{{.Agent.ID}}{{end}}">
+			{{if .IsNew}}
+			<div class="field">
+				<label for="kind">Kind</label>
+				<select id="kind" name="kind">
+					{{range .Kinds}}<option value="{{.Value}}"{{if eq .Value $.Form.Kind}} selected{{end}}>{{.Label}}</option>{{end}}
+				</select>
+				<p class="hint">The kind cannot change later. To switch, create another agent.</p>
+			</div>
+			{{end}}
+			<div class="field">
+				<label for="agent_name">Name</label>
+				<input id="agent_name" name="name" value="{{.Form.Name}}" required maxlength="100" placeholder="Support helper">
+			</div>
+			<div class="field">
+				<label for="description">Description <span class="muted">(optional)</span></label>
+				<input id="description" name="description" value="{{.Form.Description}}" maxlength="300">
+				<p class="hint">Every member of the project sees it.</p>
+			</div>
+			<div class="field">
+				<label for="prompt">Instructions</label>
+				<textarea id="prompt" name="prompt" maxlength="20000" rows="10">{{.Form.Prompt}}</textarea>
+				<p class="hint">What the agent does and how it answers. For an answer agent, describe the format and give an example answer. Only members who can edit agents see this.</p>
+			</div>
+			<div class="field">
+				<label for="model">Model</label>
+				<select id="model" name="model">
+					<option value="0"{{if not .Form.ModelID}} selected{{end}}>Project default ({{with .DefaultModel}}{{.}}{{else}}none set{{end}})</option>
+					{{range .Models}}<option value="{{.ID}}"{{if eq .ID $.Form.ModelID}} selected{{end}}>{{.Name}}</option>{{end}}
+				</select>
+			</div>
+			<fieldset class="field">
+				<legend>Repositories</legend>
+				<ul class="checks">
+					<li>
+						<label>
+							<input type="radio" name="resources" value="all"{{if .Form.AllResources}} checked{{end}}>
+							<span>All repositories<span class="check-hint">Repositories added later too.</span></span>
+						</label>
+					</li>
+					<li>
+						<label>
+							<input type="radio" name="resources" value="picked"{{if not .Form.AllResources}} checked{{end}}>
+							<span>Only the ones ticked below<span class="check-hint">A repository removed from the project drops out.</span></span>
+						</label>
+					</li>
+					{{range .Resources}}
+					<li class="pick">
+						<label>
+							<input type="checkbox" name="resource" value="{{.ID}}"{{if index $.Form.Picked .ID}} checked{{end}}>
+							<span>{{.Owner}}/{{.Repo}}{{with .Branch}} <span class="badge">{{.}}</span>{{end}}</span>
+						</label>
+					</li>
+					{{end}}
+				</ul>
+				{{if not .Resources}}<p class="hint">The project has no repositories yet.</p>{{end}}
+			</fieldset>
+			<div class="field">
+				<label for="rate_limit">Rate limit</label>
+				<input id="rate_limit" name="rate_limit" type="number" min="1" max="1000" step="1" value="{{.Form.RateLimit}}" required>
+				<p class="hint">Questions one member may ask this agent per hour, from 1 to 1000.</p>
+			</div>
+			<div class="form-actions">
+				<button class="button">{{if .IsNew}}Create agent{{else}}Save{{end}}</button>
+				<a class="button secondary" href="/projects/{{.Project.ID}}#agents">Back</a>
+			</div>
+		</form>
+		{{if not .IsNew}}
+		<form class="separated" method="post" action="/projects/{{.Project.ID}}/agents/{{.Agent.ID}}/delete">
+			<button class="button danger" data-confirm="Delete the agent {{.Agent.Name}}?">Delete agent</button>
+		</form>
+		{{end}}
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>
