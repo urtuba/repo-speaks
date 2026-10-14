@@ -30,7 +30,9 @@ One meaning per word. Code, UI and docs use these terms.
 | Not ready | An agent with no model of its own, in a project with no default model. It can be saved but cannot answer. |
 | Rate limit | How many questions one member may ask one agent per hour. Set per agent, 20 by default. |
 | Chat | A conversation between one member and one agent. With an answer agent, it holds one question and one answer. The member who started it can always read it; members with `chats:view` can read every chat. |
-| Source | A file or document listed under an answer, so a reader can check it. |
+| Answer | An agent's reply to one question: text with its sources. It runs in the background and is running, done or failed. |
+| Step | One tool call an agent makes while it answers, such as reading a file. One answer may take 30 steps. |
+| Source | A file listed under an answer, with its lines, so a reader can check it. It links to GitHub at the commit the agent read. |
 
 ## Words to avoid
 

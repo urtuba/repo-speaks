@@ -48,14 +48,14 @@ flowchart TB
     gh["<b>GitHub</b><br/>External system"]
 
     builder -- "Manages projects (HTTPS)" --> app
-    asker -- "Asks questions, reads streamed answers (HTTPS, SSE)" --> app
+    asker -- "Asks questions, reads answers (HTTPS)" --> app
     app -- "Reads and writes (SQL)" --> db
     app -- "Clones and reads repositories" --> files
     app -- "Sends questions and code context (HTTPS)" --> llm
     app -- "Fetches source code (HTTPS)" --> gh
 ```
 
-- **One process.** The web UI, the agents and the sync workers run in one Go binary; sync workers are goroutines.
+- **One process.** The web UI, the agents and the sync workers run in one Go binary; sync workers and answers are goroutines.
 - **Jobs are database rows**, so a restart does not lose a sync in progress. There is no Redis.
 - **SQLite** is the database: a file in `/data`, used from inside the Go process through a pure-Go driver.
 - **One data folder** (`/data`) holds the database and the clones (`/data/repos/<project>/<resource>`). One volume to mount, one folder to back up.
@@ -66,25 +66,40 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     actor Asker
-    participant App
+    participant Web as App: web handlers
+    participant Agent as App: agent loop
     participant DB as Database
     participant Files as File storage
     participant LLM as LLM API
 
-    Asker->>App: Question (and text attachments, if the agent allows them)
-    App->>DB: Check membership and the agent's rate limit
-    App->>LLM: Agent instructions, question, available tools
-    loop Until the LLM has enough context (indexing approach: open)
-        LLM->>App: Tool call, e.g. search or read a file
-        App->>Files: Run it, limited to the agent's enabled resources
-        App->>LLM: Tool result
+    Asker->>Web: Question
+    Web->>DB: Check membership and that the agent is ready
+    Web->>Web: Check the agent's rate limit (in memory)
+    Web->>DB: Save the question and a running answer
+    Web->>Agent: Start the answer in the background
+    Web-->>Asker: The chat page
+    Agent->>Files: Open the clone of each of the agent's repositories (os.Root)
+    Agent->>LLM: Base rules, the agent's instructions, file trees and READMEs, the chat so far, the question, the tools
+    loop At most 30 tool steps
+        LLM->>Agent: Tool call: list files, search text or read a file
+        Agent->>Files: Run it inside the clone
+        Agent->>DB: Save the step, such as "Reading owner/repo/app.go"
+        Agent->>LLM: Tool result
     end
-    LLM-->>App: Answer, streamed
-    App-->>Asker: Answer streamed (SSE), with its sources
-    App->>DB: Save the question, answer and sources
+    LLM-->>Agent: The answer, with citations
+    Agent->>DB: Save the answer, its model and tokens, and the sources it read
+    loop Every 2 seconds while the answer runs
+        Asker->>Web: Reload the messages (htmx)
+        Web->>DB: Read the steps, then the answer
+        Web-->>Asker: The steps, then the answer with its sources
+    end
 ```
 
-The loop shows agentic search. If indexing uses embeddings instead, the App searches the index first and sends the closest pieces in one call; the rest of the flow stays the same.
+- **Polling, not streaming.** The answer runs on the server's context, not the request's. The page asks for the messages every 2 seconds, so a reload loses nothing and no connection stays open.
+- **Limits.** One answer may make 30 tool calls and run 5 minutes. At the step limit, the model gets one last call that asks it to answer with what it found. Four answers run at a time; more wait their turn.
+- **A restart** stops running answers. On start, the server marks answers still running as failed, so the asker can ask again.
+- **Sources** are the files the answer cites, kept only when the agent read them during the answer. Each stores the commit the clone had at question start, and links to GitHub at that commit.
+- **No index.** The agent searches the clone with its tools. It gets the file tree and the README up front.
 
 ## Sync flow: a repository is brought up to date
 
@@ -111,7 +126,6 @@ sequenceDiagram
         Worker->>GH: git clone of the latest commit only
         GH-->>Worker: Files
         Worker->>Files: Write into a new folder, then delete .git and files over the file limit
-        Note over Worker,Files: Indexing (open) runs here
         Worker->>DB: Point the resource at the new folder, save the commit and the sync time
         Worker->>Files: Delete older folders, but keep the previous one
         Worker->>DB: Mark the job done
@@ -166,7 +180,7 @@ sequenceDiagram
 
 ## Entity relationships
 
-Planned tables for phase 1. Indexing tables come with the indexing decision.
+Tables for phase 1. `attachments` is planned and not built yet.
 
 ```mermaid
 erDiagram
@@ -289,7 +303,7 @@ erDiagram
         bool all_resources "default true; false = agent_resources"
         int model_id FK "null = project default; no action"
         int rate_limit_per_hour "per member; default 20, 1 to 1000"
-        bool attachments_on "comes with chat"
+        bool attachments_on "comes with attachments"
         time created_at
         time updated_at
     }
@@ -305,8 +319,16 @@ erDiagram
         int id PK
         int chat_id FK "cascade"
         text role "user, assistant"
-        text content
+        text content "an answer is Markdown"
+        text status "answers only: running, done, failed"
+        text error "why an answer failed"
+        text progress "one line per step"
+        text model_id "the host's model ID that answered"
+        int prompt_tokens
+        int completion_tokens
+        int steps "tool calls, 30 at most"
         time created_at
+        time finished_at
     }
     attachments {
         int id PK
@@ -318,10 +340,11 @@ erDiagram
     message_sources {
         int message_id PK,FK "cascade"
         int position PK
-        int resource_id FK
+        int resource_id FK "cascade"
         text path "file in the resource"
         int line_from
         int line_to
+        text commit_id "the clone's commit at question start"
     }
     jobs {
         int id PK
@@ -347,7 +370,9 @@ erDiagram
 - The project's default model cannot be deleted. The app refuses first; the foreign key is `ON DELETE RESTRICT` in case a code path forgets.
 - An agent may pick a model of its own; otherwise it uses the project's default. With neither, it is "not ready". A model an agent uses cannot be deleted either. The app refuses first and names the agents. The foreign key is `NO ACTION`, which SQLite checks at the end of the statement, so deleting a project still deletes its agents and models in any order.
 - An agent with `all_resources` off reads only the resources in `agent_resources`. The app adds only resources of the agent's own project. A deleted resource drops out by cascade.
-- The rate limit is stored on the agent. The chat will count questions per member in memory, so a restart will reset the counts.
+- The rate limit is stored on the agent. The app counts questions per member in memory, so a restart resets the counts.
+- Only answers have a status. A chat has at most one running answer: a question waits until the last answer is done or failed.
+- A source keeps the commit the answer read, so its link never shifts after a sync. Deleting the resource deletes its sources; the answer keeps its text.
 
 ## Components of the App
 
@@ -359,10 +384,10 @@ flowchart TB
     asker["<b>Asker</b><br/>Person"]
 
     subgraph app ["App (Go, one process)"]
-        web["<b>web</b><br/>Pages, forms and streamed answers.<br/>Security headers, sessions"]
+        web["<b>web</b><br/>Pages and forms; polls running answers.<br/>Security headers, sessions"]
         auth["<b>auth</b><br/>Passwords, session tokens,<br/>invite links, login throttle"]
         perms["<b>permissions</b><br/>Permissions, presets,<br/>grant rules"]
-        agent["<b>agent</b><br/>Chats, the tool loop,<br/>read-only tools, chat clean-up"]
+        agent["<b>agent</b><br/>The answer loop, read-only tools,<br/>sources, rate limit"]
         llm["<b>llm</b><br/>Calls OpenAI-compatible hosts.<br/>Blocks private addresses"]
         jobs["<b>jobs</b><br/>Claims job rows, runs timers,<br/>hands each job on"]
         sync["<b>sync</b><br/>Clones and refreshes<br/>one resource"]
@@ -375,18 +400,17 @@ flowchart TB
     gh["<b>GitHub</b><br/>External system"]
 
     builder -- "Manages projects (HTTPS)" --> web
-    asker -- "Asks questions (HTTPS, SSE)" --> web
+    asker -- "Asks questions (HTTPS)" --> web
     web -- "Checks logins" --> auth
     web -- "Checks what a member may do" --> perms
-    web -- "Sends questions, streams answers" --> agent
+    web -- "Sends questions" --> agent
     web -- "Reads and writes data, queues jobs" --> store
     web -- "Checks and tests models" --> llm
     agent -- "Sends prompts and tool results" --> llm
-    agent -- "Loads agents, saves messages" --> store
+    agent -- "Loads agents, saves answers and steps" --> store
     agent -- "Reads files of the agent's resources" --> files
     jobs -- "Claims jobs, queues timed ones" --> store
     jobs -- "Runs sync jobs" --> sync
-    jobs -- "Runs chat clean-up" --> agent
     sync -- "Saves sync results" --> store
     sync -- "Fetches code (HTTPS)" --> gh
     sync -- "Writes clones" --> files
@@ -394,44 +418,44 @@ flowchart TB
     llm -- "HTTPS" --> llmapi
 ```
 
-- **Two entry points.** People come in through `web`. Timers and queued work run in `jobs`. `main.go` starts both.
+- **Three entry points.** People come in through `web`. Timers and queued work run in `jobs`. Answers run in `agent`, in the background. `main.go` starts all three.
 - **`web` never calls `sync`.** It queues a job row, so the database is the only link between them. A restart loses no work.
 - **Only `store` knows SQL, and only `llm` talks to LLM hosts.** Neither uses anything else from the app.
-- **`llm` speaks one API:** OpenAI-compatible chat completions with tools, so any host that speaks it works. It lists a host's models, checks a model ID on save, and sends the Test request. Agents will send their chats through it.
-- **`llm` guards the server.** A project admin sets a model's base URL, so the client refuses loopback, private, link-local, multicast and carrier-grade NAT addresses unless the operator allows them. The check runs in the dialer, on the address dialed, so a DNS change cannot get around it. It follows no redirects, ignores proxy settings, and caps time (30 seconds) and reply sizes.
-- **Where trust changes:** file content from a repository reaches the LLM. A file can carry instructions for the agent (prompt injection), so the agent's tools only read, and only inside the agent's resources.
-- Indexing (open) would be one more component between `sync` and `agent`.
+- **`llm` speaks one API:** OpenAI-compatible chat completions with tools, so any host that speaks it works. It lists a host's models, checks a model ID on save, sends the Test request, and runs the calls of each answer.
+- **`llm` guards the server.** A project admin sets a model's base URL, so the client refuses loopback, private, link-local, multicast and carrier-grade NAT addresses unless the operator allows them. The check runs in the dialer, on the address dialed, so a DNS change cannot get around it. It follows no redirects, ignores proxy settings, and caps time (30 seconds, or 2 minutes for a call of an answer) and reply sizes.
+- **Where trust changes:** file content from a repository reaches the LLM. A file can carry instructions for the agent (prompt injection), so the agent's tools only read, and only inside the agent's resources. Every file access goes through an `os.Root` on the clone, so a symlink or a `..` cannot leave it. The model's answer is untrusted too: it renders without raw HTML, and its links show as text.
+- **`agent` takes one thing from `sync`:** `ClonePath`, where a clone lives.
 
 ## Code map
 
 ```
-main.go              read config, wire packages, start the web server and the jobs loop
+main.go              read config, wire packages, start the web server, the jobs loop and the agents
 internal/
   web/               HTTP handlers, middleware, templates, static files (embedded)
   auth/              passwords, sessions, invite links, login throttle
   permissions/       permissions, presets, Grant
   store/             SQLite access and migrations
-  jobs/              the job loop and timers; hands each job to sync or agent
+  jobs/              the job loop and timers; hands each job to sync
   sync/              clone and refresh one resource
-  agent/             chats, the tool loop and its tools, chat clean-up
+  agent/             the answer loop, its read-only tools, sources, rate limit
   llm/               OpenAI-compatible client, base URL check, private address guard
   config/            settings from the environment
 ```
 
-Built so far: `web`, `auth`, `permissions`, `store`, `config`, `jobs`, `sync`, `llm`. Agent settings live in `store` and `web`; the `agent` package comes with chat. Dependencies point one way: `web` and `jobs` use the others; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
+Built so far: every package above. Chat retention and attachments come later. Dependencies point one way: `web` and `jobs` use the others; `agent` uses `store`, `llm` and the clone path of `sync`; `store` and `llm` use nothing from the app. `jobs` takes the syncer as a small interface, and `main.go` passes it the real one.
 
 ## Known risks
 
 | Risk | Impact | Response |
 | --- | --- | --- |
 | A confident wrong answer | Askers cannot read code, so they cannot spot it | Sources under every answer; the agent says "not found" instead of guessing; managers can review chats (`chats:view`) |
-| Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM host; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
-| Cost running away | Agentic search can make many LLM calls for one question | A rate limit per member on each agent; a step limit per question; usage recorded per project |
+| Data leaving its boundary | A file in a repository can carry instructions for the agent (prompt injection); attachments reach the LLM host; a bug could cross projects | Agent tools are read-only and scoped to the agent's resources; every file access goes through `os.Root`, so links cannot leave the clone; attachments are off by default per agent, with a warning; isolation tests (quality goal 2) |
+| Prompt injection in the answer | A file tells the model to write a link that sends chat text to another site, or to show its instructions | The base rules say to ignore instructions in files and not to repeat the instructions; answers render without raw HTML, links show as text and images never load; only the app builds clickable source links. The model can still be misled, so the rules lower the risk but do not remove it |
+| Cost running away | Agentic search can make many LLM calls for one question | A rate limit per member on each agent; 30 steps and 5 minutes per question; each answer records its model and tokens (totals come later) |
 | A hostile repository | A repository or a name could try to read server files, reach other hosts, fill the disk or hang the worker | Checked names and an app-built URL; git with a fixed environment, https only, symlinks as plain files, no submodules; a size check before cloning; a timeout that kills git's process group |
 | Tokens and keys at rest | A copy of the data folder or a backup holds every GitHub token and LLM API key in plain text | Tokens and keys are write-only in the UI and kept out of URLs, arguments, logs and errors; fine-grained tokens limit each to one repository, read-only; a model's key is cleared when its URL changes; the data folder must be readable by the app only |
 | A model URL that points inside | A project admin could make the server call internal systems or the cloud metadata address, and read the replies in an error | Private addresses are refused at connect time unless the operator sets `REPO_SPEAKS_ALLOW_PRIVATE_LLM`; no redirects, no proxy; errors show the status and at most 200 characters of the host's message |
 
 ## Open decisions
 
-- Indexing: agentic search or embeddings
 - How the owner resets their own password
