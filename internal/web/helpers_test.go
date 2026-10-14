@@ -15,6 +15,8 @@ import (
 
 	"github.com/urtuba/repo-speaks/internal/agent"
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/backup"
+	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
@@ -40,6 +42,8 @@ type testApp struct {
 	logs    *syncBuffer // everything the app logged
 	dataDir string      // the database and the clones
 	answers *agent.Service
+	llm     *llm.Client
+	backups *backup.Service // off unless a test turns it on
 }
 
 func newTestApp(t *testing.T) *testApp {
@@ -52,6 +56,10 @@ func newTestApp(t *testing.T) *testApp {
 	t.Cleanup(func() { st.Close() })
 	clock := &fakeClock{t: time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)}
 	a := &testApp{t: t, store: st, clock: clock, logs: &syncBuffer{}, dataDir: dataDir}
+	a.backups, err = backup.New(st, dataDir, config.Backup{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	a.useLLM(llm.New(false))
 	return a
 }
@@ -72,7 +80,19 @@ func (a *testApp) useLLM(c *llm.Client) {
 		a.t.Fatal(err)
 	}
 	a.answers = answers
-	a.h = newHandler(a.store, logger, c, answers, a.clock.now)
+	a.llm = c
+	a.h = newHandler(a.store, logger, c, answers, a.backups, a.clock.now)
+}
+
+// useBackups rebuilds the app with backups set as in cfg.
+func (a *testApp) useBackups(cfg config.Backup) {
+	a.t.Helper()
+	b, err := backup.New(a.store, a.dataDir, cfg)
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	a.backups = b
+	a.h = newHandler(a.store, slog.New(slog.NewTextHandler(a.logs, nil)), a.llm, a.answers, b, a.clock.now)
 }
 
 // syncBuffer is a bytes.Buffer that answers may write to from their own

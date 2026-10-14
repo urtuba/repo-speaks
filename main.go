@@ -118,7 +118,7 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           web.New(st, logger, llmClient, answers),
+		Handler:           web.New(st, logger, llmClient, answers, backups),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

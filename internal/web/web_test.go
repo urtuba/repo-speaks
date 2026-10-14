@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/urtuba/repo-speaks/internal/agent"
+	"github.com/urtuba/repo-speaks/internal/backup"
+	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
@@ -22,7 +24,11 @@ func TestRoutes(t *testing.T) {
 	}
 	defer st.Close()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := New(st, logger, llm.New(false), agent.New(st, llm.New(false), t.TempDir(), logger))
+	backups, err := backup.New(st, t.TempDir(), config.Backup{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := New(st, logger, llm.New(false), agent.New(st, llm.New(false), t.TempDir(), logger), backups)
 
 	tests := []struct {
 		path       string

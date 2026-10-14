@@ -22,7 +22,8 @@
 		<a class="brand" href="/">Repo Speaks</a>
 		<nav class="nav">
 			<a href="/">Projects</a>
-			{{if .IsOwner}}<a href="/accounts">Accounts</a>{{end}}
+			{{if .IsOwner}}<a href="/accounts">Accounts</a>
+			<a href="/backups">Backups</a>{{end}}
 		</nav>
 		<div class="account">
 			<a href="/account">{{.Username}}{{if .IsOwner}} (owner){{end}}</a>

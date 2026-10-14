@@ -13,6 +13,7 @@ import (
 
 	"github.com/urtuba/repo-speaks/internal/agent"
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/backup"
 	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
@@ -27,6 +28,7 @@ type server struct {
 	logger   *slog.Logger
 	llm      *llm.Client // checks and tests models on their hosts
 	agent    *agent.Service
+	backup   *backup.Service
 	pages    *template.Template
 	throttle *auth.Throttle
 	now      func() time.Time
@@ -34,18 +36,20 @@ type server struct {
 
 // New returns the HTTP handler for the whole UI. llmClient checks a
 // model's ID when it is saved, and runs the Test button. answers takes
-// the questions members ask.
-func New(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service) http.Handler {
-	return newHandler(st, logger, llmClient, answers, time.Now)
+// the questions members ask. backups says whether backups are on and
+// where they go.
+func New(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service, backups *backup.Service) http.Handler {
+	return newHandler(st, logger, llmClient, answers, backups, time.Now)
 }
 
 // newHandler is New with a clock, so tests can move time forward.
-func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service, now func() time.Time) http.Handler {
+func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service, backups *backup.Service, now func() time.Time) http.Handler {
 	s := &server{
 		store:    st,
 		logger:   logger,
 		llm:      llmClient,
 		agent:    answers,
+		backup:   backups,
 		pages:    template.Must(template.ParseFS(files, "templates/*.html")),
 		throttle: auth.NewThrottle(now),
 		now:      now,
@@ -105,6 +109,9 @@ func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, ans
 	mux.HandleFunc("POST /account", requireLogin(s.changePassword))
 	mux.HandleFunc("GET /accounts", requireLogin(s.accounts))
 	mux.HandleFunc("POST /accounts/{user}/reset", requireLogin(s.createReset))
+	mux.HandleFunc("GET /backups", requireLogin(s.backups))
+	mux.HandleFunc("POST /backups", requireLogin(s.queueBackup))
+	mux.HandleFunc("GET /backups/list", requireLogin(s.backupsFragment))
 	mux.HandleFunc("GET /reset/{token}", s.showReset)
 	mux.HandleFunc("POST /reset/{token}", s.useReset)
 	mux.HandleFunc("GET /invites/{token}", s.showInvite)

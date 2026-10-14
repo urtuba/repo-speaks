@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "Backups"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<h1>Backups</h1>
+	</div>
+
+	<section class="card">
+		{{with .Notice}}<p class="alert success" role="status">{{.}}</p>{{end}}
+		{{if .On}}
+		<p>Backups are on. They go to:</p>
+		<ul>
+			{{range .Targets}}<li class="mono">{{.}}</li>{{end}}
+		</ul>
+		<form class="inline" method="post" action="/backups">
+			<button class="button">Back up now</button>
+		</form>
+		<p class="muted small">A backup is the database, encrypted with the passphrase in the server's settings. Repository clones are left out; a sync rebuilds them. Keep the passphrase somewhere safe: without it, a backup cannot be opened. Repo Speaks never deletes old backups.</p>
+		{{else}}
+		<p>Backups are off.</p>
+		<p class="muted small">To turn them on, set a backup folder, S3 storage or both, and a passphrase, in the server's environment. Then restart the server. The README lists the settings.</p>
+		{{end}}
+	</section>
+
+	<section class="card">
+		<div class="card-head">
+			<h2>Recent backups</h2>
+		</div>
+		{{template "backups" .List}}
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>
+
+{{/* backups is the list of recent backups. The Backups page includes
+     it, and GET /backups/list serves it alone. While a backup is queued
+     or running, htmx loads it again every 5 seconds and swaps it in,
+     until no backup is open. The argument is a backupList. */}}
+{{define "backups"}}
+<div id="backup-list"{{if .Open}} hx-get="/backups/list" hx-trigger="every 5s" hx-swap="outerHTML"{{end}}>
+	{{with .Open}}<p><span class="badge">{{.}}</span> A backup is {{.}}. This list updates by itself.</p>{{end}}
+	{{if .Items}}
+	<table class="table">
+		<thead>
+			<tr><th>Started</th><th>File</th><th>Size</th><th>Targets</th><th>Result</th></tr>
+		</thead>
+		<tbody>
+			{{range .Items}}
+			<tr>
+				<td><span title="{{.At}}">{{.Ago}}</span></td>
+				<td class="mono small">{{.Name}}</td>
+				<td>{{if .Targets}}{{.Size}}{{else}}<span class="muted">none</span>{{end}}</td>
+				<td>{{with .Targets}}{{.}}{{else}}<span class="muted">none</span>{{end}}</td>
+				<td>{{with .Error}}<span class="error-text">{{.}}</span>{{else}}<span class="badge">done</span>{{end}}</td>
+			</tr>
+			{{end}}
+		</tbody>
+	</table>
+	{{else}}
+	<p class="empty">No backups yet.</p>
+	{{end}}
+</div>
+{{end}}
