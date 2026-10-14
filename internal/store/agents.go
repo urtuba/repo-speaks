@@ -250,6 +250,19 @@ func (s *Store) Agent(ctx context.Context, projectID, id int64) (Agent, error) {
 	return a, nil
 }
 
+// AgentSummary returns the project's agent with the id, without its
+// prompt, for pages every member sees. It returns ErrNotFound when the
+// project has no such agent.
+func (s *Store) AgentSummary(ctx context.Context, projectID, id int64) (AgentSummary, error) {
+	row := s.db.QueryRowContext(ctx, "SELECT"+agentSummaryColumns+agentFrom+`
+		WHERE a.id = ? AND a.project_id = ?`, id, projectID)
+	a, err := scanAgentSummary(row)
+	if err != nil {
+		return AgentSummary{}, fmt.Errorf("agent %d: %w", id, err)
+	}
+	return a, nil
+}
+
 // querier is a *sql.DB or *sql.Tx, so agent can run inside a
 // transaction or outside one.
 type querier interface {
