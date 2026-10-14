@@ -90,8 +90,7 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
-// Unwrap lets http.ResponseController reach the original writer,
-// which streaming (Server-Sent Events) will need.
+// Unwrap lets http.ResponseController reach the original writer.
 func (r *statusRecorder) Unwrap() http.ResponseWriter {
 	return r.ResponseWriter
 }

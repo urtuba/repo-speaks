@@ -99,8 +99,10 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,
-		// No WriteTimeout: it would cut streamed answers. A streaming
-		// handler sets its own with http.ResponseController.
+		// Answers run in the background and pages poll for them, so no
+		// handler writes for long. The slowest one checks a model with
+		// its host, which takes 30 seconds at most.
+		WriteTimeout: time.Minute,
 	}
 	g.Go(func() error {
 		logger.Info("listening", "addr", cfg.Addr, "data", cfg.DataDir)
