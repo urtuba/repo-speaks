@@ -32,7 +32,13 @@ import (
 // usage lists the commands. With no command, the server starts.
 const usage = `usage:
   repo-speaks                        start the server
-  repo-speaks reset-link <username>  print a password reset link`
+  repo-speaks reset-link <username>  print a password reset link
+  repo-speaks backup                 back up the database now
+  repo-speaks restore <file>         put a backup in place of the database;
+                                     stop the server first`
+
+// dbFile is the database's file name in the data folder.
+const dbFile = "repo-speaks.db"
 
 func main() {
 	ctx := context.Background()
@@ -42,6 +48,10 @@ func main() {
 		err = run(ctx, os.Getenv, os.Stderr)
 	case len(args) == 2 && args[0] == "reset-link":
 		err = resetLink(ctx, os.Getenv, args[1], os.Stdout, time.Now())
+	case len(args) == 1 && args[0] == "backup":
+		err = backupNow(ctx, os.Getenv, os.Stdout)
+	case len(args) == 2 && args[0] == "restore":
+		err = restoreBackup(ctx, os.Getenv, args[1], os.Stdout, time.Now())
 	default:
 		err = errors.New(usage)
 	}
@@ -66,7 +76,7 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return fmt.Errorf("create data folder: %w", err)
 	}
-	st, err := store.Open(ctx, filepath.Join(cfg.DataDir, "repo-speaks.db"))
+	st, err := store.Open(ctx, filepath.Join(cfg.DataDir, dbFile))
 	if err != nil {
 		return err
 	}

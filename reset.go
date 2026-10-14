@@ -21,7 +21,7 @@ import (
 // server runs: SQLite lets the two processes share the database.
 func resetLink(ctx context.Context, getenv func(string) string, username string, stdout io.Writer, now time.Time) error {
 	cfg := config.Load(getenv)
-	path := filepath.Join(cfg.DataDir, "repo-speaks.db")
+	path := filepath.Join(cfg.DataDir, dbFile)
 	// Opening a missing file would create an empty database, so check first.
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("no database at %s: set REPO_SPEAKS_DATA_DIR to the server's data folder", path)
