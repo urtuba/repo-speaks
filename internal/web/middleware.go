@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -32,6 +33,8 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		// noteRoute fills this in once the mux has picked a route.
+		r = r.WithContext(context.WithValue(r.Context(), routeKey{}, new(string)))
 		next.ServeHTTP(rec, r)
 		logger.Info("request",
 			"method", r.Method,
@@ -42,15 +45,35 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 	})
 }
 
+// routeKey is the context key for the route a request matched, a
+// *string that noteRoute fills in.
+type routeKey struct{}
+
+// noteRoute wraps the mux and notes the route it matched, for the log.
+// The session middleware passes the mux a copy of the request, so the
+// mux sets r.Pattern on the copy, and the log never sees it otherwise.
+// The note is also made when the handler panics.
+func noteRoute(mux http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if route, ok := r.Context().Value(routeKey{}).(*string); ok {
+				*route = r.Pattern
+			}
+		}()
+		mux.ServeHTTP(w, r)
+	})
+}
+
 // logRoute names the request in the log by the route it matched, such
 // as "GET /reset/{token}", not by its path. Reset and invite links carry
 // their token in the path, and a log line must not hand out a working
 // link. A request no route matched logs only the first part of its path.
-// The mux sets r.Pattern on this same request, so it is known once the
-// handler has run.
 func logRoute(r *http.Request) string {
 	if r.Pattern != "" {
 		return r.Pattern
+	}
+	if route, ok := r.Context().Value(routeKey{}).(*string); ok && *route != "" {
+		return *route
 	}
 	first, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/"), "/")
 	return "/" + first

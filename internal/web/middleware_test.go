@@ -129,7 +129,7 @@ func TestLogsHideTokens(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /reset/{token}", func(w http.ResponseWriter, r *http.Request) {})
 	mux.HandleFunc("GET /invites/{token}", func(w http.ResponseWriter, r *http.Request) { panic("boom") })
-	h := middlewares(slog.New(slog.NewTextHandler(&logs, nil)), mux)
+	h := middlewares(slog.New(slog.NewTextHandler(&logs, nil)), noteRoute(mux))
 
 	for _, req := range []*http.Request{
 		httptest.NewRequest(http.MethodGet, "/reset/"+token, nil),
@@ -145,5 +145,18 @@ func TestLogsHideTokens(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), `route="GET /reset/{token}"`) {
 		t.Errorf("logs do not name the matched route:\n%s", logs.String())
+	}
+}
+
+// TestLogsNameRouteBehindSession checks the full handler: the session
+// middleware passes the mux a copy of the request, and the log must
+// still name the route a logged-in request matched.
+func TestLogsNameRouteBehindSession(t *testing.T) {
+	a := newTestApp(t)
+	a.createUser("samed", true)
+	c := a.login("samed")
+	a.get("/projects/123", c)
+	if !strings.Contains(a.logs.String(), `route="GET /projects/{id}"`) {
+		t.Errorf("log does not name the route:\n%s", a.logs.String())
 	}
 }

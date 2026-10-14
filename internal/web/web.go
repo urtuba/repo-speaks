@@ -94,7 +94,7 @@ func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, now
 	mux.HandleFunc("POST /reset/{token}", s.useReset)
 	mux.HandleFunc("GET /invites/{token}", s.showInvite)
 	mux.HandleFunc("POST /invites/{token}", s.acceptInvite)
-	return middlewares(logger, s.loadSession(mux))
+	return middlewares(logger, s.loadSession(noteRoute(mux)))
 }
 
 // status renders the status fragment that htmx swaps into the page.

@@ -535,7 +535,7 @@ func TestModelKeyNeverLogged(t *testing.T) {
 	app.post(projectPath(app.project.ID)+"/models", fillModelForm("Local", app.base, glm, newModelKey), ada)
 
 	logs := app.logs.String()
-	if strings.Count(logs, "route=/projects") < 8 {
+	if strings.Count(logs, `route="POST /projects/{id}/models`) < 8 {
 		t.Fatalf("the log shows no model requests:\n%s", logs)
 	}
 	for _, key := range []string{modelKey, newModelKey, "secret"} {
