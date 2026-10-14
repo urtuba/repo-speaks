@@ -10,6 +10,42 @@ Ask your codebase questions in plain language. A self-hosted chat for people who
 
 A developer connects GitHub repositories and markdown docs to a project, sets up agents, and invites teammates. Teammates such as product managers, operations, marketing, managers or clients ask questions. They get advisory answers with sources, without access to the repository.
 
+## Run with Docker
+
+Requires Docker with Compose. In a clone of this repository:
+
+```sh
+docker compose up -d
+```
+
+Open http://localhost:8080/setup and create the owner account. For HTTPS, put a reverse proxy in front of it (see [Behind a reverse proxy](#behind-a-reverse-proxy)).
+
+**Where data lives.** Everything is in the `repo-speaks-data` volume, mounted at `/data`: the database, the repository clones and the copies made before upgrades. The server runs as user ID 10001, and only that user can read the folder. Backup settings go in `compose.yaml`; its comments show them, and [Backups](#backups) explains them.
+
+**Upgrading.** Make a backup. Then get the new version and rebuild the image; the volume stays:
+
+```sh
+git pull
+docker compose up -d --build
+```
+
+See [Upgrading](#upgrading) for what happens to the database.
+
+**Commands.** While the server runs, run a command in its container:
+
+```sh
+docker compose exec repo-speaks repo-speaks backup
+docker compose exec repo-speaks repo-speaks reset-link <username>
+```
+
+A restore needs the server stopped, so it runs in a new container on the same volume. The backup file must be inside the container, such as in the mounted backup folder:
+
+```sh
+docker compose stop
+docker compose run --rm repo-speaks repo-speaks restore /backups/repo-speaks-20261014T031500Z-schema0008.db.gpg
+docker compose start
+```
+
 ## Development
 
 Requires Go 1.27 and git 2.32 or newer. The server checks git at start and stops with a message if it is missing or too old.
