@@ -108,10 +108,19 @@ func newerError(version int) error {
 
 // copyBeforeUpgrade writes a copy of the database into dir, named after
 // the first step it is about to apply, and keeps only the newest
-// copies.
+// copies. When a copy before that step exists already, an earlier start
+// made it and the step failed since. No new copy is made, so a server
+// that fails on every start cannot prune away the copy that matters.
 func copyBeforeUpgrade(ctx context.Context, db *sql.DB, dir string, next int, now time.Time) error {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("copy before upgrade: %w", err)
+	}
+	earlier, err := filepath.Glob(filepath.Join(dir, fmt.Sprintf("repo-speaks-before-%04d-*.db", next)))
+	if err != nil {
+		return fmt.Errorf("copy before upgrade: %w", err)
+	}
+	if len(earlier) > 0 {
+		return nil
 	}
 	name := fmt.Sprintf("repo-speaks-before-%04d-%s.db", next, now.UTC().Format("20060102T150405Z"))
 	if err := copyDB(ctx, db, filepath.Join(dir, name)); err != nil {

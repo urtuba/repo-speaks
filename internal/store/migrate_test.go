@@ -238,3 +238,26 @@ func TestLoadMigrationsChecksNumbers(t *testing.T) {
 		})
 	}
 }
+
+// TestCopyBeforeUpgradeOncePerStep checks that a step failing on every
+// start gets one copy, not one per start, so pruning never removes the
+// copy taken before the failing step.
+func TestCopyBeforeUpgradeOncePerStep(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	upgrades := filepath.Join(dir, "upgrades")
+	db := openTestDB(t, filepath.Join(dir, "test.db"))
+	start := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	for i := range keepUpgradeCopies + 2 {
+		if err := copyBeforeUpgrade(ctx, db, upgrades, 2, start.Add(time.Duration(i)*time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	copies, err := filepath.Glob(filepath.Join(upgrades, "repo-speaks-before-0002-*.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(copies) != 1 || !strings.Contains(copies[0], "20261014T120000Z") {
+		t.Errorf("copies after repeated starts = %v, want only the first", copies)
+	}
+}
