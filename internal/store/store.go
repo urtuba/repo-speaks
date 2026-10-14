@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
@@ -39,11 +41,29 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
+	// The database holds API keys and tokens, so only the app's user may
+	// read it. SQLite creates the file readable by all, and gives the
+	// -wal and -shm files the database file's mode.
+	if err := restrictFiles(path); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("open database %s: %w", path, err)
+	}
 	if err := migrate(ctx, db, migrationFiles, filepath.Join(filepath.Dir(path), "upgrades")); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
 	return &Store{db: db}, nil
+}
+
+// restrictFiles makes the database file and its -wal and -shm files
+// readable and writable by their owner only.
+func restrictFiles(path string) error {
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(name, 0o600); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 // Ping checks that the database answers.

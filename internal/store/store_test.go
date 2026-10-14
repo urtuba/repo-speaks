@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -40,5 +41,28 @@ func TestOpenSetsPragmas(t *testing.T) {
 				t.Errorf("PRAGMA %s = %q, want %q", tt.pragma, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestOpenRestrictsFileMode checks that only the app's user can read the
+// database, which holds API keys and tokens.
+func TestOpenRestrictsFileMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "repo-speaks.db")
+	st, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		info, err := os.Stat(name)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode := info.Mode().Perm(); mode != 0o600 {
+			t.Errorf("%s mode = %v, want 0600", filepath.Base(name), mode)
+		}
 	}
 }
