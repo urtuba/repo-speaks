@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,24 @@ var ErrModelExists = errors.New("model name already used")
 // ErrModelIsDefault is returned when a model to delete is the project's
 // default model.
 var ErrModelIsDefault = errors.New("model is the project's default")
+
+// ErrModelInUse matches the error DeleteModel returns when agents use
+// the model. The error itself is a *ModelInUseError, which names them.
+var ErrModelInUse = errors.New("model is used by agents")
+
+// ModelInUseError is returned when agents use a model to delete.
+// errors.Is(err, ErrModelInUse) is true for it.
+type ModelInUseError struct {
+	Agents []string // the names of the agents that use the model, sorted
+}
+
+func (e *ModelInUseError) Error() string {
+	return fmt.Sprintf("%v: %s", ErrModelInUse, strings.Join(e.Agents, ", "))
+}
+
+func (e *ModelInUseError) Is(target error) bool {
+	return target == ErrModelInUse
+}
 
 // Model is an LLM model of a project, as pages show it. It never holds
 // the API key: only ModelEndpoint reads that.
@@ -202,8 +221,9 @@ func (s *Store) UpdateModel(ctx context.Context, projectID, id int64, ch ModelCh
 }
 
 // DeleteModel removes a model from its project. It returns
-// ErrModelIsDefault when the model is the project's default, and
-// ErrNotFound when the project has no such model.
+// ErrModelIsDefault when the model is the project's default, a
+// *ModelInUseError when agents use it, and ErrNotFound when the project
+// has no such model.
 func (s *Store) DeleteModel(ctx context.Context, projectID, id int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -220,6 +240,13 @@ func (s *Store) DeleteModel(ctx context.Context, projectID, id int64) error {
 	if isDefault {
 		return ErrModelIsDefault
 	}
+	users, err := agentsUsingModel(ctx, tx, projectID, id)
+	if err != nil {
+		return fmt.Errorf("delete model: %w", err)
+	}
+	if len(users) > 0 {
+		return &ModelInUseError{Agents: users}
+	}
 	res, err := tx.ExecContext(ctx, "DELETE FROM models WHERE id = ? AND project_id = ?", id, projectID)
 	if err != nil {
 		return fmt.Errorf("delete model: %w", err)
@@ -228,6 +255,27 @@ func (s *Store) DeleteModel(ctx context.Context, projectID, id int64) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// agentsUsingModel returns the names of the project's agents that use
+// the model as their own, by name.
+func agentsUsingModel(ctx context.Context, tx *sql.Tx, projectID, modelID int64) ([]string, error) {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT name FROM agents WHERE project_id = ? AND model_id = ? ORDER BY name, id",
+		projectID, modelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, rows.Err()
 }
 
 // SetDefaultModel makes the model the project's default. A modelID of 0

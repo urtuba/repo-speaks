@@ -210,8 +210,9 @@ func (s *Store) SetSyncSettings(ctx context.Context, id int64, intervalHours int
 }
 
 // DeleteProject deletes a project and everything in it: memberships,
-// permissions, invites, resources and their jobs, and models go with it
-// (ON DELETE CASCADE). The clones on disk are removed later by the jobs loop.
+// permissions, invites, resources and their jobs, models, and agents go
+// with it (ON DELETE CASCADE). The clones on disk are removed later by
+// the jobs loop.
 func (s *Store) DeleteProject(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
