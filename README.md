@@ -4,7 +4,7 @@
 
 Ask your codebase questions in plain language. A self-hosted chat for people who don't read code.
 
-> **Status:** early development. Members can ask agents questions; some parts are not built yet (see [Not built yet](#not-built-yet)). Terms are defined in the [glossary](docs/glossary.md).
+> **Status:** early development. Members can ask agents questions; some parts are not built yet (see [Not built yet](#not-built-yet)). Terms are defined in the [glossary](docs/glossary.md). Answer quality is checked with a [test set](docs/test-set.md).
 
 ## What it is
 
