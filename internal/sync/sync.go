@@ -28,6 +28,9 @@ const maxRepoKB = 1 << 20
 // apiTimeout limits the size check.
 const apiTimeout = 30 * time.Second
 
+// reposFolder is the folder inside the data folder that holds clones.
+const reposFolder = "repos"
+
 // Syncer clones resources into <data>/repos/<project>/<resource>/<folder>.
 // Each sync makes a new folder, so a question reading the old one is
 // never cut off halfway.
@@ -50,7 +53,7 @@ type Syncer struct {
 // New returns a Syncer that keeps clones under dataDir and runs the git
 // command.
 func New(st *store.Store, dataDir string) (*Syncer, error) {
-	abs, err := filepath.Abs(filepath.Join(dataDir, "repos"))
+	abs, err := filepath.Abs(filepath.Join(dataDir, reposFolder))
 	if err != nil {
 		return nil, fmt.Errorf("clone folder: %w", err)
 	}
@@ -171,6 +174,14 @@ func (s *Syncer) sync(ctx context.Context, src store.SyncSource) error {
 	}
 	removeOld(dir, name, src.CloneDir)
 	return nil
+}
+
+// ClonePath returns the folder of one clone of a resource under dataDir.
+// folder is the name a sync saved for the clone. Agents read the clone
+// there.
+func ClonePath(dataDir string, projectID, resourceID int64, folder string) string {
+	return filepath.Join(dataDir, reposFolder,
+		strconv.FormatInt(projectID, 10), strconv.FormatInt(resourceID, 10), folder)
 }
 
 // resourceDir is the folder that holds a resource's clones.

@@ -639,3 +639,15 @@ func TestCheckGitWithoutGit(t *testing.T) {
 		t.Errorf("CheckGit() error = %v, want a clear message", err)
 	}
 }
+
+func TestClonePath(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(nil, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := ClonePath(dir, 3, 7, "1760000000")
+	if want := filepath.Join(s.resourceDir(3, 7), "1760000000"); got != want {
+		t.Errorf("ClonePath() = %q, want %q, where Sync puts it", got, want)
+	}
+}
