@@ -47,6 +47,13 @@ func TestIsPrivate(t *testing.T) {
 		{"::ffff:127.0.0.1", true},
 		{"::ffff:169.254.169.254", true},
 		{"::ffff:10.0.0.1", true},
+		// A private IPv4 address inside NAT64 or 6to4.
+		{"64:ff9b::127.0.0.1", true},
+		{"64:ff9b::a9fe:a9fe", true}, // 169.254.169.254
+		{"2002:a00:1::1", true},      // 10.0.0.1
+		{"2002:7f00:1::", true},      // 127.0.0.1
+		{"64:ff9b::8.8.8.8", false},
+		{"2002:808:808::1", false}, // 8.8.8.8
 
 		// Public addresses, some next to a blocked range.
 		{"8.8.8.8", false},
