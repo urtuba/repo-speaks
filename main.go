@@ -20,6 +20,7 @@ import (
 
 	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/jobs"
+	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 	"github.com/urtuba/repo-speaks/internal/sync"
 	"github.com/urtuba/repo-speaks/internal/web"
@@ -74,9 +75,12 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 		return err
 	}
 
+	if cfg.AllowPrivateLLM {
+		logger.Warn("models may use hosts on private addresses (REPO_SPEAKS_ALLOW_PRIVATE_LLM)")
+	}
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           web.New(st, logger),
+		Handler:           web.New(st, logger, llm.New(cfg.AllowPrivateLLM)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

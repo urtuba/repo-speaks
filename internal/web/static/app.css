@@ -669,6 +669,26 @@ form.inline {
 	margin-top: 20px;
 }
 
+/* Models: the Test button's result, and the forms below the list. A
+   model ID can be long, so it may break anywhere. */
+
+#models td.mono {
+	overflow-wrap: anywhere;
+}
+
+.test-result:not(:empty) {
+	margin-top: 16px;
+}
+
+.test-result .alert {
+	margin-bottom: 0;
+	overflow-wrap: anywhere;
+}
+
+#models .table + .test-result + .inline-form {
+	margin-top: 20px;
+}
+
 /* Alerts. The sign on the left is drawn with CSS. */
 
 .alert {

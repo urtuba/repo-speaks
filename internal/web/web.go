@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
 
@@ -23,21 +24,24 @@ var files embed.FS
 type server struct {
 	store    *store.Store
 	logger   *slog.Logger
+	llm      *llm.Client // checks and tests models on their hosts
 	pages    *template.Template
 	throttle *auth.Throttle
 	now      func() time.Time
 }
 
-// New returns the HTTP handler for the whole UI.
-func New(st *store.Store, logger *slog.Logger) http.Handler {
-	return newHandler(st, logger, time.Now)
+// New returns the HTTP handler for the whole UI. llmClient checks a
+// model's ID when it is saved, and runs the Test button.
+func New(st *store.Store, logger *slog.Logger, llmClient *llm.Client) http.Handler {
+	return newHandler(st, logger, llmClient, time.Now)
 }
 
 // newHandler is New with a clock, so tests can move time forward.
-func newHandler(st *store.Store, logger *slog.Logger, now func() time.Time) http.Handler {
+func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, now func() time.Time) http.Handler {
 	s := &server{
 		store:    st,
 		logger:   logger,
+		llm:      llmClient,
 		pages:    template.Must(template.ParseFS(files, "templates/*.html")),
 		throttle: auth.NewThrottle(now),
 		now:      now,
@@ -75,6 +79,12 @@ func newHandler(st *store.Store, logger *slog.Logger, now func() time.Time) http
 	mux.HandleFunc("GET /projects/{id}/settings", requireLogin(s.settings))
 	mux.HandleFunc("POST /projects/{id}/settings", requireLogin(s.saveSettings))
 	mux.HandleFunc("POST /projects/{id}/settings/sync", requireLogin(s.saveSyncSettings))
+	mux.HandleFunc("POST /projects/{id}/settings/default-model", requireLogin(s.setDefaultModel))
+	mux.HandleFunc("POST /projects/{id}/models", requireLogin(s.addModel))
+	mux.HandleFunc("GET /projects/{id}/models/{model}", requireLogin(s.modelPageView))
+	mux.HandleFunc("POST /projects/{id}/models/{model}", requireLogin(s.saveModel))
+	mux.HandleFunc("POST /projects/{id}/models/{model}/test", requireLogin(s.testModel))
+	mux.HandleFunc("POST /projects/{id}/models/{model}/delete", requireLogin(s.deleteModel))
 	mux.HandleFunc("POST /projects/{id}/delete", requireLogin(s.deleteProject))
 	mux.HandleFunc("GET /account", requireLogin(s.account))
 	mux.HandleFunc("POST /account", requireLogin(s.changePassword))

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" .Model.Name}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a> / <a href="/projects/{{.Project.ID}}/settings#models">Settings</a> /</p>
+			<h1>{{.Model.Name}}</h1>
+		</div>
+		<div class="head-actions">
+			{{if eq .Model.ID .Project.DefaultModelID}}<span class="badge">default</span>{{end}}
+		</div>
+	</div>
+
+	<section class="card narrow">
+		<div class="card-head">
+			<h2>Model</h2>
+		</div>
+		{{if eq .Saved "1"}}<p class="alert success" role="status">Saved.</p>{{end}}
+		{{if eq .Saved "cleared"}}<p class="alert success" role="status">Saved. The base URL changed, so the key was cleared. Enter the key for the new host.</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<form method="post" action="/projects/{{.Project.ID}}/models/{{.Model.ID}}">
+			<div class="field">
+				<label for="model_name">Name</label>
+				<input id="model_name" name="name" value="{{.Name}}" required maxlength="100">
+			</div>
+			<div class="field">
+				<label for="base_url">Base URL</label>
+				<input id="base_url" name="base_url" value="{{.BaseURL}}" required maxlength="500">
+			</div>
+			<div class="field">
+				<label for="model_id">Model ID</label>
+				<input id="model_id" name="model_id" value="{{.ModelID}}" required maxlength="200">
+			</div>
+			<div class="field">
+				<label for="api_key">{{if .Model.HasKey}}New API key <span class="muted">(empty keeps ····{{.Model.KeyHint}})</span>{{else}}API key <span class="muted">(none set)</span>{{end}}</label>
+				<input id="api_key" name="api_key" type="password" autocomplete="off" maxlength="500">
+			</div>
+			<div class="form-actions">
+				<button class="button">Save</button>
+				<a class="button secondary" href="/projects/{{.Project.ID}}/settings#models">Back</a>
+			</div>
+		</form>
+		<p class="muted small">Saving checks the model ID against the host's model list. A new base URL clears the key, unless you enter a new key with it. The key is never shown again.</p>
+		<form class="separated" method="post" action="/projects/{{.Project.ID}}/models/{{.Model.ID}}/test" hx-post="/projects/{{.Project.ID}}/models/{{.Model.ID}}/test" hx-target="#model-test" hx-disabled-elt="find button">
+			<button class="button secondary">Test</button>
+		</form>
+		<div id="model-test" class="test-result" aria-live="polite">{{with .Test}}{{template "model_test" .}}{{end}}</div>
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

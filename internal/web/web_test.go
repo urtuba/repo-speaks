@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
 
@@ -19,7 +20,7 @@ func TestRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	handler := New(st, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := New(st, slog.New(slog.NewTextHandler(io.Discard, nil)), llm.New(false))
 
 	tests := []struct {
 		path       string

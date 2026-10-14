@@ -1,8 +1,8 @@
 package web
 
 import (
+	"bytes"
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/urtuba/repo-speaks/internal/auth"
+	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
 
@@ -25,12 +26,14 @@ type fakeClock struct{ t time.Time }
 func (c *fakeClock) now() time.Time          { return c.t }
 func (c *fakeClock) advance(d time.Duration) { c.t = c.t.Add(d) }
 
-// testApp is the whole UI on a fresh database, with a fake clock.
+// testApp is the whole UI on a fresh database, with a fake clock. Like
+// the real server, it refuses LLM hosts on private addresses.
 type testApp struct {
 	t     *testing.T
 	h     http.Handler
 	store *store.Store
 	clock *fakeClock
+	logs  *bytes.Buffer // everything the app logged
 }
 
 func newTestApp(t *testing.T) *testApp {
@@ -41,8 +44,16 @@ func newTestApp(t *testing.T) *testApp {
 	}
 	t.Cleanup(func() { st.Close() })
 	clock := &fakeClock{t: time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)}
-	h := newHandler(st, slog.New(slog.NewTextHandler(io.Discard, nil)), clock.now)
-	return &testApp{t: t, h: h, store: st, clock: clock}
+	a := &testApp{t: t, store: st, clock: clock, logs: &bytes.Buffer{}}
+	a.useLLM(llm.New(false))
+	return a
+}
+
+// useLLM rebuilds the app with another LLM client. Tests that call a
+// fake host on 127.0.0.1 need one that allows private addresses. The
+// login throttle starts over; sessions stay, since they are rows.
+func (a *testApp) useLLM(c *llm.Client) {
+	a.h = newHandler(a.store, slog.New(slog.NewTextHandler(a.logs, nil)), c, a.clock.now)
 }
 
 // get sends a GET request, with the session cookie when c is not nil.

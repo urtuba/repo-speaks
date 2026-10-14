@@ -50,6 +50,73 @@
 		<p class="muted small">A sync also runs when a repository is added and when someone presses Sync now. Files larger than the limit are left out of the clone, so agents cannot read them. A new limit applies from the next sync.</p>
 	</section>
 
+	<section class="card" id="models">
+		<div class="card-head">
+			<h2>Models</h2>
+		</div>
+		{{with .ModelNotice}}<p class="alert success" role="status">{{.}}</p>{{end}}
+		{{with .ModelError}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		{{if .Models}}
+		<table class="table">
+			<thead>
+				<tr><th>Name</th><th>Model ID</th><th>Base URL</th><th>Key</th><th></th></tr>
+			</thead>
+			<tbody>
+				{{range .Models}}
+				<tr>
+					<td>{{.Name}}{{if eq .ID $.Project.DefaultModelID}} <span class="badge">default</span>{{end}}</td>
+					<td class="mono">{{.ModelID}}</td>
+					<td class="mono">{{.BaseURL}}</td>
+					<td>{{if .HasKey}}<span class="mono">····{{.KeyHint}}</span>{{else}}<span class="muted">none</span>{{end}}</td>
+					<td class="actions">
+						<form class="inline" method="post" action="/projects/{{$.Project.ID}}/models/{{.ID}}/test" hx-post="/projects/{{$.Project.ID}}/models/{{.ID}}/test" hx-target="#model-test" hx-disabled-elt="find button">
+							<button class="button secondary small">Test</button>
+						</form>
+						<a class="button secondary small" href="/projects/{{$.Project.ID}}/models/{{.ID}}">Edit</a>
+						<form class="inline" method="post" action="/projects/{{$.Project.ID}}/models/{{.ID}}/delete">
+							<button class="button danger small" data-confirm="Delete the model {{.Name}}?">Delete</button>
+						</form>
+					</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+		<div id="model-test" class="test-result" aria-live="polite"></div>
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/settings/default-model">
+			<div class="field">
+				<label for="default_model">Default model</label>
+				<select id="default_model" name="model">
+					<option value="0"{{if not .Project.DefaultModelID}} selected{{end}}>None</option>
+					{{range .Models}}<option value="{{.ID}}"{{if eq .ID $.Project.DefaultModelID}} selected{{end}}>{{.Name}}</option>{{end}}
+				</select>
+			</div>
+			<button class="button">Save</button>
+		</form>
+		{{else}}
+		<p class="empty">No models yet. Add one below.</p>
+		{{end}}
+		<form class="inline-form" method="post" action="/projects/{{.Project.ID}}/models">
+			<div class="field">
+				<label for="model_name">Name</label>
+				<input id="model_name" name="name" value="{{.ModelName}}" required maxlength="100" placeholder="Fast">
+			</div>
+			<div class="field wide">
+				<label for="base_url">Base URL</label>
+				<input id="base_url" name="base_url" value="{{.ModelBaseURL}}" required maxlength="500">
+			</div>
+			<div class="field wide">
+				<label for="model_id">Model ID</label>
+				<input id="model_id" name="model_id" value="{{.ModelID}}" required maxlength="200" placeholder="z-ai/glm-5.3-flash">
+			</div>
+			<div class="field">
+				<label for="api_key">API key</label>
+				<input id="api_key" name="api_key" type="password" autocomplete="off" maxlength="500">
+			</div>
+			<button class="button">Add model</button>
+		</form>
+		<p class="muted small">Any host with an OpenAI-compatible API works. Saving checks the model ID against the host's model list. On OpenRouter, a model must support tool use. The key is stored on this server and never shown again. Test sends one short request with one tool.</p>
+	</section>
+
 	{{if .User.IsOwner}}
 	<section class="card danger-zone">
 		<div class="card-head">

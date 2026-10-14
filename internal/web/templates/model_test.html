@@ -1,0 +1,7 @@
+{{/* model_test is the result of a model's Test button. htmx swaps it
+     into #model-test. The argument is a *modelTest. */}}
+{{define "model_test"}}
+{{- if .OK}}<p class="alert success" role="status">Test of {{.Name}} passed: the model called the tool.</p>
+{{- else}}<p class="alert" role="alert">Test of {{.Name}} failed: {{.Error}}</p>
+{{- end}}
+{{- end}}

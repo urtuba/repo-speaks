@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/permissions"
 	"github.com/urtuba/repo-speaks/internal/store"
 )
@@ -27,6 +28,15 @@ type settingsPage struct {
 	MaxFileMB    string
 	SyncSaved    bool
 	SyncError    string
+
+	// The models card. The add form's fields are as sent when there is
+	// an error; the key is never sent back.
+	Models       []store.Model
+	ModelNotice  string
+	ModelError   string
+	ModelName    string
+	ModelBaseURL string
+	ModelID      string
 }
 
 // syncInterval is one choice for how often a project's resources sync.
@@ -58,33 +68,54 @@ func newSettingsPage(r *http.Request, p store.Project) settingsPage {
 		Intervals:    syncIntervals,
 		SyncInterval: p.SyncIntervalHours,
 		MaxFileMB:    strconv.FormatInt(p.MaxFileBytes>>20, 10),
+		ModelBaseURL: llm.DefaultBaseURL,
 	}
+}
+
+// renderSettings loads the project's models into page and renders the
+// settings page.
+func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, status int, page settingsPage) {
+	models, err := s.store.Models(r.Context(), page.Project.ID)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	page.Models = models
+	s.render(w, status, "settings.html", page)
+}
+
+// openSettings loads the project in the URL and checks that the viewer
+// has project:edit. It returns false when it has already answered.
+func (s *server) openSettings(w http.ResponseWriter, r *http.Request) (store.Project, bool) {
+	p, perms, ok := s.openProject(w, r)
+	if !ok {
+		return store.Project{}, false
+	}
+	if !perms.Has(permissions.PermProjectEdit) {
+		http.Error(w, "You cannot change this project's settings.", http.StatusForbidden)
+		return store.Project{}, false
+	}
+	return p, true
 }
 
 // settings shows the project's settings. It needs project:edit.
 func (s *server) settings(w http.ResponseWriter, r *http.Request) {
-	p, perms, ok := s.openProject(w, r)
+	p, ok := s.openSettings(w, r)
 	if !ok {
 		return
 	}
-	if !perms.Has(permissions.PermProjectEdit) {
-		http.Error(w, "You cannot change this project's settings.", http.StatusForbidden)
-		return
-	}
 	page := newSettingsPage(r, p)
-	page.Saved = r.URL.Query().Get("saved") == "1"
-	page.SyncSaved = r.URL.Query().Get("saved") == "sync"
-	s.render(w, http.StatusOK, "settings.html", page)
+	saved := r.URL.Query().Get("saved")
+	page.Saved = saved == "1"
+	page.SyncSaved = saved == "sync"
+	page.ModelNotice = modelNotices[saved]
+	s.renderSettings(w, r, http.StatusOK, page)
 }
 
 // saveSettings renames the project. It needs project:edit.
 func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
-	p, perms, ok := s.openProject(w, r)
+	p, ok := s.openSettings(w, r)
 	if !ok {
-		return
-	}
-	if !perms.Has(permissions.PermProjectEdit) {
-		http.Error(w, "You cannot change this project's settings.", http.StatusForbidden)
 		return
 	}
 	if !parseForm(w, r) {
@@ -94,7 +125,7 @@ func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	if msg != "" {
 		page := newSettingsPage(r, p)
 		page.Name, page.Error = r.PostFormValue("name"), msg
-		s.render(w, http.StatusBadRequest, "settings.html", page)
+		s.renderSettings(w, r, http.StatusBadRequest, page)
 		return
 	}
 	if err := s.store.RenameProject(r.Context(), p.ID, name); err != nil {
@@ -108,12 +139,8 @@ func (s *server) saveSettings(w http.ResponseWriter, r *http.Request) {
 // largest file a sync keeps. It needs project:edit. The new file limit
 // applies from the next sync.
 func (s *server) saveSyncSettings(w http.ResponseWriter, r *http.Request) {
-	p, perms, ok := s.openProject(w, r)
+	p, ok := s.openSettings(w, r)
 	if !ok {
-		return
-	}
-	if !perms.Has(permissions.PermProjectEdit) {
-		http.Error(w, "You cannot change this project's settings.", http.StatusForbidden)
 		return
 	}
 	if !parseForm(w, r) {
@@ -125,14 +152,14 @@ func (s *server) saveSyncSettings(w http.ResponseWriter, r *http.Request) {
 	known := err == nil && slices.ContainsFunc(syncIntervals, func(i syncInterval) bool { return i.Hours == hours })
 	if !known {
 		page.SyncError = "Pick one of the sync intervals in the list."
-		s.render(w, http.StatusBadRequest, "settings.html", page)
+		s.renderSettings(w, r, http.StatusBadRequest, page)
 		return
 	}
 	page.SyncInterval = hours
 	mb, err := strconv.ParseInt(page.MaxFileMB, 10, 64)
 	if err != nil || mb < minFileMB || mb > maxFileMB {
 		page.SyncError = "The file size limit must be a whole number from 1 to 100 MB."
-		s.render(w, http.StatusBadRequest, "settings.html", page)
+		s.renderSettings(w, r, http.StatusBadRequest, page)
 		return
 	}
 	if err := s.store.SetSyncSettings(r.Context(), p.ID, hours, mb<<20); err != nil {
@@ -160,7 +187,7 @@ func (s *server) deleteProject(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("confirm") != p.Name {
 		page := newSettingsPage(r, p)
 		page.DeleteError = "Not deleted: type the project's name exactly as shown."
-		s.render(w, http.StatusBadRequest, "settings.html", page)
+		s.renderSettings(w, r, http.StatusBadRequest, page)
 		return
 	}
 	if err := s.store.DeleteProject(r.Context(), p.ID); err != nil {
