@@ -273,6 +273,10 @@ func TestKeyNeverInErrors(t *testing.T) {
 	errs = append(errs, c.Test(ctx, srv.URL+"/v1", testKey, "m"))
 	errs = append(errs, c.Test(ctx, "http://127.0.0.1:1/v1", testKey, "m"))
 	errs = append(errs, New(false).Test(ctx, srv.URL+"/v1", testKey, "m"))
+	_, err = c.Chat(ctx, srv.URL+"/v1", testKey, chatRequest)
+	errs = append(errs, err)
+	_, err = c.Chat(ctx, srv.URL+"/redirect", testKey, chatRequest)
+	errs = append(errs, err)
 	for i, err := range errs {
 		if err == nil {
 			t.Errorf("call %d: no error", i)
