@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
 )
@@ -19,7 +20,8 @@ type Store struct {
 }
 
 // Open opens or creates the SQLite file at path, and brings its schema up
-// to date. WAL mode lets readers work while one writer writes;
+// to date. Before a schema change, it keeps a copy of the database in
+// the upgrades folder next to path. WAL mode lets readers work while one writer writes;
 // busy_timeout makes a second writer wait instead of failing at once;
 // synchronous(FULL) writes every commit to disk before it returns, so a
 // power cut loses nothing that was reported as saved.
@@ -37,7 +39,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
-	if err := migrate(ctx, db, migrationFiles); err != nil {
+	if err := migrate(ctx, db, migrationFiles, filepath.Join(filepath.Dir(path), "upgrades")); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}
