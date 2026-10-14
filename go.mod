@@ -3,6 +3,7 @@ module github.com/urtuba/repo-speaks
 go 1.27.2
 
 require (
+	github.com/yuin/goldmark v1.8.6
 	golang.org/x/crypto v0.58.0
 	golang.org/x/sync v0.24.0
 	modernc.org/sqlite v1.60.1

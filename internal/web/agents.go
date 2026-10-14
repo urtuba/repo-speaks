@@ -28,8 +28,8 @@ const (
 	maxAgentName        = 100
 	maxAgentDescription = 300
 	maxAgentPrompt      = 20000
-	// The rate limit is questions per member per hour. Only the field
-	// exists for now: the chat will count questions and enforce it.
+	// The rate limit is questions per member per hour. The agent
+	// package counts them.
 	defaultRateLimit = 20
 	minRateLimit     = 1
 	maxRateLimit     = 1000

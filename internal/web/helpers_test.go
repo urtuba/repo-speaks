@@ -9,9 +9,11 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/urtuba/repo-speaks/internal/agent"
 	"github.com/urtuba/repo-speaks/internal/auth"
 	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
@@ -27,33 +29,69 @@ func (c *fakeClock) now() time.Time          { return c.t }
 func (c *fakeClock) advance(d time.Duration) { c.t = c.t.Add(d) }
 
 // testApp is the whole UI on a fresh database, with a fake clock. Like
-// the real server, it refuses LLM hosts on private addresses.
+// the real server, it refuses LLM hosts on private addresses. Answers
+// run in the background, as on the real server; answers.Wait waits for
+// them.
 type testApp struct {
-	t     *testing.T
-	h     http.Handler
-	store *store.Store
-	clock *fakeClock
-	logs  *bytes.Buffer // everything the app logged
+	t       *testing.T
+	h       http.Handler
+	store   *store.Store
+	clock   *fakeClock
+	logs    *syncBuffer // everything the app logged
+	dataDir string      // the database and the clones
+	answers *agent.Service
 }
 
 func newTestApp(t *testing.T) *testApp {
 	t.Helper()
-	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+	dataDir := t.TempDir()
+	st, err := store.Open(context.Background(), filepath.Join(dataDir, "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
 	clock := &fakeClock{t: time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)}
-	a := &testApp{t: t, store: st, clock: clock, logs: &bytes.Buffer{}}
+	a := &testApp{t: t, store: st, clock: clock, logs: &syncBuffer{}, dataDir: dataDir}
 	a.useLLM(llm.New(false))
 	return a
 }
 
 // useLLM rebuilds the app with another LLM client. Tests that call a
 // fake host on 127.0.0.1 need one that allows private addresses. The
-// login throttle starts over; sessions stay, since they are rows.
+// login throttle and the rate limit counts start over; sessions stay,
+// since they are rows.
 func (a *testApp) useLLM(c *llm.Client) {
-	a.h = newHandler(a.store, slog.New(slog.NewTextHandler(a.logs, nil)), c, a.clock.now)
+	logger := slog.New(slog.NewTextHandler(a.logs, nil))
+	answers := agent.New(a.store, c, a.dataDir, logger)
+	ctx, cancel := context.WithCancel(context.Background())
+	a.t.Cleanup(func() {
+		cancel()
+		answers.Wait()
+	})
+	if err := answers.Start(ctx); err != nil {
+		a.t.Fatal(err)
+	}
+	a.answers = answers
+	a.h = newHandler(a.store, logger, c, answers, a.clock.now)
+}
+
+// syncBuffer is a bytes.Buffer that answers may write to from their own
+// goroutines.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // get sends a GET request, with the session cookie when c is not nil.

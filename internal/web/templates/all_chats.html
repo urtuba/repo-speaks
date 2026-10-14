@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" "All chats"}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}#agents">{{.Project.Name}}</a> /</p>
+			<h1>All chats</h1>
+		</div>
+	</div>
+
+	<section class="card">
+		<p class="muted">Every chat in this project, newest first. Members with chats:view see this page.</p>
+		{{if .Chats}}
+		<table class="table">
+			<thead>
+				<tr><th>Chat</th><th>Agent</th><th>Member</th><th>Started</th></tr>
+			</thead>
+			<tbody>
+				{{range .Chats}}
+				<tr>
+					<td><a href="/projects/{{$.Project.ID}}/chats/{{.ID}}">{{.Title}}</a></td>
+					<td>{{with .AgentName}}{{.}}{{else}}<span class="muted">deleted agent</span>{{end}}</td>
+					<td>{{with .Username}}{{.}}{{else}}<span class="muted">deleted account</span>{{end}}</td>
+					<td class="muted">{{.CreatedAt.Format "2 Jan 2006, 15:04 UTC"}}</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+		{{if .More}}<p class="muted small">Showing the newest {{.Max}} chats.</p>{{end}}
+		{{else}}
+		<p class="empty">No chats yet.</p>
+		{{end}}
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

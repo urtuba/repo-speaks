@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/urtuba/repo-speaks/internal/agent"
 	"github.com/urtuba/repo-speaks/internal/auth"
 	"github.com/urtuba/repo-speaks/internal/llm"
 	"github.com/urtuba/repo-speaks/internal/store"
@@ -25,23 +26,26 @@ type server struct {
 	store    *store.Store
 	logger   *slog.Logger
 	llm      *llm.Client // checks and tests models on their hosts
+	agent    *agent.Service
 	pages    *template.Template
 	throttle *auth.Throttle
 	now      func() time.Time
 }
 
 // New returns the HTTP handler for the whole UI. llmClient checks a
-// model's ID when it is saved, and runs the Test button.
-func New(st *store.Store, logger *slog.Logger, llmClient *llm.Client) http.Handler {
-	return newHandler(st, logger, llmClient, time.Now)
+// model's ID when it is saved, and runs the Test button. answers takes
+// the questions members ask.
+func New(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service) http.Handler {
+	return newHandler(st, logger, llmClient, answers, time.Now)
 }
 
 // newHandler is New with a clock, so tests can move time forward.
-func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, now func() time.Time) http.Handler {
+func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, answers *agent.Service, now func() time.Time) http.Handler {
 	s := &server{
 		store:    st,
 		logger:   logger,
 		llm:      llmClient,
+		agent:    answers,
 		pages:    template.Must(template.ParseFS(files, "templates/*.html")),
 		throttle: auth.NewThrottle(now),
 		now:      now,
@@ -90,6 +94,12 @@ func newHandler(st *store.Store, logger *slog.Logger, llmClient *llm.Client, now
 	mux.HandleFunc("GET /projects/{id}/agents/{agent}", requireLogin(s.agentPageView))
 	mux.HandleFunc("POST /projects/{id}/agents/{agent}", requireLogin(s.saveAgent))
 	mux.HandleFunc("POST /projects/{id}/agents/{agent}/delete", requireLogin(s.deleteAgent))
+	mux.HandleFunc("GET /projects/{id}/agents/{agent}/chats", requireLogin(s.askAgentPage))
+	mux.HandleFunc("POST /projects/{id}/agents/{agent}/chats", requireLogin(s.startChat))
+	mux.HandleFunc("GET /projects/{id}/chats", requireLogin(s.allChats))
+	mux.HandleFunc("GET /projects/{id}/chats/{chat}", requireLogin(s.chatPageView))
+	mux.HandleFunc("POST /projects/{id}/chats/{chat}", requireLogin(s.askInChat))
+	mux.HandleFunc("GET /projects/{id}/chats/{chat}/messages", requireLogin(s.chatBodyFragment))
 	mux.HandleFunc("POST /projects/{id}/delete", requireLogin(s.deleteProject))
 	mux.HandleFunc("GET /account", requireLogin(s.account))
 	mux.HandleFunc("POST /account", requireLogin(s.changePassword))

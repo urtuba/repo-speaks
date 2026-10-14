@@ -1,0 +1,59 @@
+{{/* chat-body is the messages of a chat and the question box. The chat
+     page includes it, and GET /projects/{id}/chats/{chat}/messages
+     serves it alone. While an answer runs, htmx loads it again every 2
+     seconds and swaps it in, until the answer is done or failed. The
+     argument is a chatBody. */}}
+{{define "chat-body"}}
+<div id="chat-body" class="messages"{{if .Running}} hx-get="/projects/{{.ProjectID}}/chats/{{.ChatID}}/messages" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+	{{range .Messages}}
+	{{if eq .Role "user"}}
+	<div class="message">
+		<p class="message-head">Question</p>
+		<p class="question-text">{{.Content}}</p>
+	</div>
+	{{else}}
+	<div class="message answer">
+		<p class="message-head">{{with $.AgentName}}{{.}}{{else}}Answer{{end}}</p>
+		{{if eq .Status "running"}}
+		<p class="muted small"><span class="badge">working</span> The agent is looking through the code.</p>
+		{{if .Progress}}
+		<ol class="steps">
+			{{range .Progress}}<li>{{.}}</li>{{end}}
+		</ol>
+		{{else}}
+		<p class="muted small">Waiting to start.</p>
+		{{end}}
+		{{else if eq .Status "failed"}}
+		<p class="alert" role="alert">{{.Error}}</p>
+		{{else}}
+		<div class="markdown">{{.HTML}}</div>
+		{{if .Sources}}
+		<p class="message-head sources-head">Sources</p>
+		<ol class="sources">
+			{{range .Sources}}
+			<li>{{if .URL}}<a href="{{.URL}}" rel="noreferrer">{{.Owner}}/{{.Repo}}/{{.Path}}</a>{{else}}{{.Owner}}/{{.Repo}}/{{.Path}}{{end}}
+				<span class="muted">{{if eq .LineFrom .LineTo}}line {{.LineFrom}}{{else}}lines {{.LineFrom}}-{{.LineTo}}{{end}}</span></li>
+			{{end}}
+		</ol>
+		{{end}}
+		{{end}}
+	</div>
+	{{end}}
+	{{end}}
+
+	{{if .CanAsk}}
+	<form class="card" method="post" action="/projects/{{.ProjectID}}/chats/{{.ChatID}}">
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		<div class="field">
+			<label for="question">Follow-up question</label>
+			<textarea id="question" name="question" class="question-box" rows="3" maxlength="4000" required{{if .Running}} disabled{{end}}>{{.Question}}</textarea>
+			{{if .Running}}<p class="hint">You can ask again when the answer is done.</p>{{end}}
+		</div>
+		<button class="button"{{if .Running}} disabled{{end}}>Ask</button>
+	</form>
+	{{else}}
+	{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+	{{with .Closed}}<p class="muted">{{.}}{{if $.AskPath}} <a href="{{$.AskPath}}">Ask a new question</a>.{{end}}</p>{{end}}
+	{{end}}
+</div>
+{{end}}

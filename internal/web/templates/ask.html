@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" .Agent.Name}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}#agents">{{.Project.Name}}</a> /</p>
+			<h1>{{.Agent.Name}}</h1>
+		</div>
+		<div class="head-actions">
+			<span class="badge">{{.Agent.Kind}}</span>
+		</div>
+	</div>
+
+	<section class="card">
+		<div class="card-head">
+			<h2>{{if eq .Agent.Kind "answer"}}Ask a question{{else}}New chat{{end}}</h2>
+		</div>
+		{{with .Agent.Description}}<p class="muted">{{.}}</p>{{end}}
+		{{with .Error}}<p class="alert" role="alert">{{.}}</p>{{end}}
+		{{if .Agent.Ready}}
+		<form method="post" action="/projects/{{.Project.ID}}/agents/{{.Agent.ID}}/chats">
+			<div class="field">
+				<label for="question">Question</label>
+				<textarea id="question" name="question" class="question-box" rows="3" maxlength="4000" required>{{.Question}}</textarea>
+				<p class="hint">{{if eq .Agent.Kind "answer"}}This agent gives one answer per question, with no follow-ups.{{else}}You can ask follow-up questions in the chat.{{end}} Members with chats:view, such as managers, can read your chats.</p>
+			</div>
+			<button class="button">Ask</button>
+		</form>
+		{{else}}
+		<p class="alert" role="alert">This agent is not ready: it has no model. Ask an admin to set one.</p>
+		{{end}}
+	</section>
+
+	<section class="card">
+		<div class="card-head">
+			<h2>{{if eq .Agent.Kind "answer"}}Your questions{{else}}Your chats{{end}}</h2>
+		</div>
+		{{if .Chats}}
+		<table class="table">
+			<thead>
+				<tr><th>{{if eq .Agent.Kind "answer"}}Question{{else}}Chat{{end}}</th><th>Started</th></tr>
+			</thead>
+			<tbody>
+				{{range .Chats}}
+				<tr>
+					<td><a href="/projects/{{$.Project.ID}}/chats/{{.ID}}">{{.Title}}</a></td>
+					<td class="muted">{{.CreatedAt.Format "2 Jan 2006, 15:04 UTC"}}</td>
+				</tr>
+				{{end}}
+			</tbody>
+		</table>
+		{{else}}
+		<p class="empty">Nothing yet.</p>
+		{{end}}
+	</section>
+</main>
+{{template "footer"}}
+</body>
+</html>

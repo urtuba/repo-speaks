@@ -44,8 +44,7 @@ type Agent struct {
 	Prompt  string // the instructions, with the answer format of an answer agent
 	ModelID int64  // the agent's own model, or 0 for the project's default
 	// RateLimitPerHour is how many questions one member may ask the
-	// agent in an hour. It is only stored for now: the chat will count
-	// the questions, in memory, and enforce it.
+	// agent in an hour. The agent package counts them, in memory.
 	RateLimitPerHour int
 	// AllResources is true when the agent reads every resource of the
 	// project. When false, it reads only ResourceIDs.

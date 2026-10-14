@@ -1,6 +1,6 @@
-// Command repo-speaks runs the Repo Speaks server: the web UI and the
-// background jobs that sync repositories, and later the agents, all in
-// one process.
+// Command repo-speaks runs the Repo Speaks server: the web UI, the
+// background jobs that sync repositories, and the agents, all in one
+// process.
 package main
 
 import (
@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/urtuba/repo-speaks/internal/agent"
 	"github.com/urtuba/repo-speaks/internal/config"
 	"github.com/urtuba/repo-speaks/internal/jobs"
 	"github.com/urtuba/repo-speaks/internal/llm"
@@ -78,17 +79,29 @@ func run(ctx context.Context, getenv func(string) string, stderr io.Writer) erro
 	if cfg.AllowPrivateLLM {
 		logger.Warn("models may use hosts on private addresses (REPO_SPEAKS_ALLOW_PRIVATE_LLM)")
 	}
+	llmClient := llm.New(cfg.AllowPrivateLLM)
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Answers run in the background on ctx, so they stop with the server.
+	// Start marks the answers an earlier run left running as failed.
+	// Wait runs before the database closes, so each stopped answer can
+	// record why.
+	answers := agent.New(st, llmClient, cfg.DataDir, logger)
+	if err := answers.Start(ctx); err != nil {
+		return err
+	}
+	defer answers.Wait()
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           web.New(st, logger, llm.New(cfg.AllowPrivateLLM)),
+		Handler:           web.New(st, logger, llmClient, answers),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		// No WriteTimeout: it would cut streamed answers. A streaming
 		// handler sets its own with http.ResponseController.
 	}
-
-	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		logger.Info("listening", "addr", cfg.Addr, "data", cfg.DataDir)
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

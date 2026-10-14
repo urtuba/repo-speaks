@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head" .Chat.Title}}
+</head>
+<body>
+{{template "topbar" .User}}
+<main class="page stack">
+	<div class="page-head">
+		<div>
+			<p class="breadcrumb"><a href="/">Projects</a> / <a href="/projects/{{.Project.ID}}#agents">{{.Project.Name}}</a> /
+				{{if .Body.AskPath}}<a href="{{.Body.AskPath}}">{{.Chat.AgentName}}</a> /{{end}}</p>
+			<h1>{{.Chat.Title}}</h1>
+		</div>
+		<div class="head-actions">
+			{{with .Chat.AgentKind}}<span class="badge">{{.}}</span>{{end}}
+		</div>
+	</div>
+	<p class="muted small chat-meta">
+		Agent: {{with .Chat.AgentName}}{{.}}{{else}}deleted agent{{end}}.
+		Started by {{with .Chat.Username}}{{.}}{{else}}deleted account{{end}}, {{.Chat.CreatedAt.Format "2 Jan 2006, 15:04 UTC"}}.
+		Members with chats:view, such as managers, can read this chat.
+	</p>
+	{{template "chat-body" .Body}}
+</main>
+{{template "footer"}}
+</body>
+</html>

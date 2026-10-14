@@ -38,7 +38,10 @@
 	<section class="card" id="agents">
 		<div class="card-head">
 			<h2>Agents</h2>
-			{{if .CanEditAgents}}<a class="button secondary small" href="/projects/{{.Project.ID}}/agents/new">New agent</a>{{end}}
+			<div class="head-actions">
+				{{if .CanSeeChats}}<a class="button secondary small" href="/projects/{{.Project.ID}}/chats">All chats</a>{{end}}
+				{{if .CanEditAgents}}<a class="button secondary small" href="/projects/{{.Project.ID}}/agents/new">New agent</a>{{end}}
+			</div>
 		</div>
 		{{with .AgentNotice}}<p class="alert success" role="status">{{.}}</p>{{end}}
 		{{if .Agents}}
@@ -53,6 +56,7 @@
 					<td><span class="badge">{{.Kind}}</span></td>
 					<td>{{with .Description}}{{.}}{{else}}<span class="muted">none</span>{{end}}</td>
 					<td class="actions">
+						{{if .Ready}}<a class="button small" href="/projects/{{$.Project.ID}}/agents/{{.ID}}/chats">{{if eq .Kind "answer"}}Ask{{else}}Chat{{end}}</a>{{end}}
 						{{if $.CanEditAgents}}<a class="button secondary small" href="/projects/{{$.Project.ID}}/agents/{{.ID}}">Edit</a>{{end}}
 					</td>
 				</tr>

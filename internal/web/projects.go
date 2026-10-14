@@ -139,10 +139,12 @@ type projectPage struct {
 	Invites       []store.Invite
 	Error         string // shown in the invite section
 
-	// Every member sees the agents, without their prompts. With
-	// agents:edit, the list links to the agent pages.
+	// Every member sees the agents, without their prompts, and may ask
+	// the ready ones. With agents:edit, the list links to the agent
+	// pages.
 	Agents        []store.AgentSummary
 	CanEditAgents bool
+	CanSeeChats   bool   // chats:view, for the link to every chat
 	AgentNotice   string // after an agent action, such as "Agent deleted."
 
 	CanSeeResources bool
@@ -174,6 +176,7 @@ func (s *server) renderProjectPage(w http.ResponseWriter, r *http.Request, statu
 	data.CanInvite = perms.Has(permissions.PermMembersEdit)
 	data.CanSeeResources = perms.Has(permissions.PermResourcesView)
 	data.CanEditAgents = perms.Has(permissions.PermAgentsEdit)
+	data.CanSeeChats = perms.Has(permissions.PermChatsView)
 	var err error
 	if data.Agents, err = s.store.Agents(ctx, p.ID); err != nil {
 		s.serverError(w, r, err)
